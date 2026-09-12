@@ -356,3 +356,10 @@ test("check and cross override strategy, including outliers, and survive storage
  assert.equal(marketItemIncluded(checked,checked.items[3]),true);
  assert.notEqual(marketInputKey(emptyProduct('a')),marketInputKey({...emptyProduct('a'),name:'G304'}));
 });
+
+import {quoteMarketQuery} from "../packages/market";
+test("BigGo search wraps normalized product terms in one pair of quotes",()=>{
+ assert.equal(quoteMarketQuery(' Apple iPhone 17 256GB '),'"Apple iPhone 17 256GB"');
+ assert.equal(quoteMarketQuery('"AirPods Pro 3"'),'"AirPods Pro 3"');
+ assert.equal(quoteMarketQuery('  '),'');
+});

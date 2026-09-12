@@ -14,6 +14,7 @@ import { useStudio } from "./useStudio";
 import { emptyProduct, missingInformation } from "@/packages/product";
 import { Settings } from "./components/Settings";
 import { PreferencePanel } from "./components/Preferences";
+import { ProcessingOverlay } from "./components/ProcessingOverlay";
 import { ProductQuestions } from "./components/ProductQuestions";
 import { SellerForm, sellerSections } from "./components/SellerForm";
 export default function Editor() {
@@ -289,6 +290,7 @@ export default function Editor() {
           </button>
         </aside>
       </div>
+      <ProcessingOverlay active={s.processing} stage={s.busy} />
       <footer className="seller-footer">
         <span>
           {s.busy

@@ -36,6 +36,7 @@ export function useStudio() {
   });
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [busy, setBusy] = useState("");
+  const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -51,11 +52,14 @@ export function useStudio() {
   const run = useCallback(
     async (name: string, fn: () => Promise<void>) => {
       setBusy(name);
+      const blocking=["upload","analyze","clarify"].includes(name);
+      if(blocking) setProcessing(true);
       try {
         await fn();
       } catch (e) {
         notify(e instanceof Error ? e.message : "操作失敗。", true);
       } finally {
+        if(blocking) setProcessing(false);
         setBusy("");
       }
     },
@@ -289,6 +293,7 @@ export function useStudio() {
     settings,
     setSettings,
     busy,
+    processing,
     message,
     error,
     dirty,

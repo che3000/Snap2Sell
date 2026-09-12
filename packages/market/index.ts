@@ -112,3 +112,8 @@ export function marketItemIncluded(market:MarketResearch,item:MarketItem) {
 export function marketInputKey(p:Product) {
  return JSON.stringify([p.id,p.name,p.brand,p.model,p.category,p.condition,p.attributes]);
 }
+
+export function quoteMarketQuery(query:string) {
+ const cleaned=query.replace(/["“”]/g,"").trim().replace(/\s+/g," ");
+ return cleaned ? `"${cleaned}"` : "";
+}
