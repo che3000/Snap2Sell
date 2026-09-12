@@ -371,3 +371,12 @@ test("merchant hyperlinks use decoded purl with safe source fallback",()=>{
  assert.equal(productLink('https://shop.example/item'),'https://shop.example/item');
  assert.equal(productLink('https://biggo.com.tw/r/?purl=javascript%3Aalert(1)'),'https://biggo.com.tw/r/?purl=javascript%3Aalert(1)');
 });
+
+test("description versions differ in structure and retain disclosed defects",()=>{
+ const options=listingOptions({...emptyProduct('styles'),name:'iPhone 17',brand:'Apple',model:'iPhone 17',condition:'二手',attributes:{容量:'256GB',顏色:'白色',瑕疵:'背面有刮痕',充電接口:'USB-C'},shipping:'三個工作天出貨'}).descriptions;
+ assert.equal(new Set(options.map(o=>o.text)).size,3);
+ assert.ok(options[0].text.length<options[1].text.length);
+ assert.match(options[1].text,/【詳細規格】/);assert.match(options[2].text,/下單前/);
+ for(const o of options) assert.match(o.text,/背面有刮痕/);
+ assert.doesNotMatch(options[2].text,/【詳細規格】|•/);
+});
