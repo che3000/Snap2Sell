@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { samples } from "@/fixtures/products";
+import { previewFromAnalysis } from "@/packages/listing";
+import { emptyProduct, applyAnalysis } from "@/packages/product";
+import { analysisResultSchema } from "@/packages/contracts";
 import { defaults, type Product, type Preferences } from "@/packages/contracts";
 export async function api<T = { profile: Preferences }>(
   path: string,
@@ -21,11 +23,12 @@ export async function api<T = { profile: Preferences }>(
   return body;
 }
 export function useStudio() {
-  const [p, setP] = useState<Product>(samples[0]);
+  const [p, setP] = useState<Product>(() => emptyProduct("new-product"));
   const [saved, setSaved] = useState<Product[]>([]);
   const [prefs, setPrefs] = useState<Preferences>(defaults);
   const [override, setOverride] = useState<Partial<Preferences>>({});
   const [settings, setSettings] = useState({
+    shared: false,
     configured: false,
     model: "gpt-4.1-mini",
   });
@@ -58,12 +61,12 @@ export function useStudio() {
   useEffect(() => {
     void api<{
       drafts: Product[];
-      settings: { configured: boolean; model: string };
+      settings: { configured: boolean; shared: boolean; model: string };
       profile: Preferences;
     }>("bootstrap")
       .then((d) => {
         setSaved(d.drafts);
-        setP((old) => (old === samples[0] ? d.drafts[0] || old : old));
+        setP((old) => (old.id === "new-product" ? d.drafts[0] || old : old));
         setSettings(d.settings);
         setPrefs(d.profile);
         setLoaded(true);
@@ -139,6 +142,13 @@ export function useStudio() {
         `${useAI ? "AI" : "依已確認資料"}已產生草稿，請核對後儲存。${r.warnings?.join("；") || ""}`,
       );
     });
+  const analyzeProduct = async (product: Product) => {
+    const result = analysisResultSchema.parse(await api("analyze", { product }));
+    const next = applyAnalysis(product, result);
+    update({ ...next, ...previewFromAnalysis(next) });
+    notify("照片已辨識，有依據的資訊已填入空白欄位。標題與描述已整理為待核對草稿；售價、庫存與出貨資訊需由你填寫。");
+  };
+  const analyze = () => run("analyze", () => analyzeProduct(p));
   const upload = (files: FileList | null) =>
     run("upload", async () => {
       if (!files) return;
@@ -168,7 +178,12 @@ export function useStudio() {
       } finally {
         if (next.length > p.images.length) update({ images: next });
       }
-      notify("圖片已上傳，請儲存草稿以保留商品圖片順序。");
+      if (settings.configured) {
+        setBusy("analyze");
+        notify("圖片已上傳，正在辨識並填入資訊…");
+        try { await analyzeProduct({ ...p, images: next }); }
+        catch (e) { notify(`照片已保留，辨識未完成：${e instanceof Error ? e.message : "請重試"}`, true); }
+      } else notify("圖片已上傳。AI 尚未啟用，啟用後可按「AI 辨識並填入」重試。");
     });
   const exportDraft = () => {
     const blob = new Blob(
@@ -213,6 +228,7 @@ export function useStudio() {
     save,
     generate,
     upload,
+    analyze,
     exportDraft,
     setPrefs,
   };

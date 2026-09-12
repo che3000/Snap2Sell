@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { samples } from "@/fixtures/products";
-import { missingInformation } from "@/packages/product";
+import { missingInformation, emptyProduct } from "@/packages/product";
 import { useStudio } from "./useStudio";
 import { Settings } from "./components/Settings";
 import { PreferencePanel } from "./components/Preferences";
@@ -96,21 +96,13 @@ export default function Editor() {
         <div>
           <div className="eyebrow">商品工作台</div>
           <h1>好商品，值得好好介紹。</h1>
-          <p>從商品資訊開始，完成屬於你的商品頁。</p>
+          <p>上傳圖片 → 自動填入資訊 → 核對商品 → 產生文案與匯出。</p>
         </div>
         <button
           className="primary"
           disabled={!!s.busy}
           onClick={() => {
-            s.select({
-              ...samples[0],
-              id: crypto.randomUUID(),
-              name: "",
-              brand: "",
-              model: "",
-              category: "",
-              store: p.store,
-            });
+            s.select(emptyProduct(crypto.randomUUID(), p.store));
             setTab("basic");
           }}
         >

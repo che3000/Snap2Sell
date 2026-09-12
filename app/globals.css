@@ -892,3 +892,5 @@ label,
   margin: 0;
   min-width: 0;
 }
+
+.test-login{max-width:520px;margin:8vh auto;padding:32px;background:white;border:1px solid #e4e4e7;border-radius:20px}.test-login h1{font-size:28px;margin:28px 0 12px}.test-login p{line-height:1.7}.test-login form{margin:24px 0}.test-login .primary{width:100%;justify-content:center}

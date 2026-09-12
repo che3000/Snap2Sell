@@ -179,3 +179,39 @@ test("G304 X and mouse skins are not G304 comparables", () => {
     [false, false],
   );
 });
+
+import { applyAnalysis, emptyProduct } from "../packages/product";
+import { analysisResultSchema } from "../packages/contracts";
+const analysis = analysisResultSchema.parse({name:"Logitech G304",brand:"Logitech",model:"G304",category:"滑鼠",identityConfidence:"high_confidence",identityEvidence:"包裝正面寫著 G304",observations:[{label:"顏色",value:"黑色",evidence:"滑鼠外殼為黑色",confidence:"high_confidence"},{label:"電池續航",value:"250 小時",evidence:"不清楚",confidence:"uncertain"},{label:"保固",value:"一年",evidence:"包裝文字",confidence:"high_confidence"}],questions:["是否有功能異常？"]});
+test("photo fill keeps uncertain specs and seller promises empty",()=>{
+ const p=applyAnalysis(emptyProduct('photo'),analysis);
+ assert.equal(p.model,'G304');assert.deepEqual(p.attributes,{顏色:'黑色'});assert.equal(p.confirmed,false);
+ assert.equal(p.stock,null);assert.equal(p.price,null);assert.equal(p.warranty,'');assert.equal(p.condition,'');
+ assert.ok(missingInformation(p).includes('庫存'));
+});
+test("photo analysis preserves manual edits and rejects uncertain identity",()=>{
+ const p=applyAnalysis({...emptyProduct('photo'),model:'manual',attributes:{顏色:'白色'}},analysis);
+ assert.equal(p.model,'manual');assert.equal(p.attributes.顏色,'白色');
+ assert.equal(applyAnalysis(emptyProduct('photo'),{...analysis,identityConfidence:'probable'}).model,'');
+});
+test("new product never inherits sample specs or images",()=>{
+ assert.deepEqual(emptyProduct('new').attributes,{});assert.deepEqual(emptyProduct('new').images,[]);
+ assert.equal(emptyProduct('new').brand,'');
+});
+import { loginCookie, sessionOwner } from "../apps/api/test-auth";
+test("shared test logins isolate sessions and reject forged or revoked cookies",()=>{
+ process.env.TEST_LOGIN_USERNAME='test';process.env.TEST_LOGIN_PASSWORD='test-password';process.env.TEST_SESSION_SECRET='s'.repeat(48);
+ assert.throws(()=>loginCookie('test','wrong',true));
+ const a=loginCookie('test','test-password',true),b=loginCookie('test','test-password',true);
+ assert.notEqual(sessionOwner(a),sessionOwner(b));assert.ok(sessionOwner(a));assert.ok(a.includes('HttpOnly'));assert.ok(a.includes('Secure'));
+ assert.equal(sessionOwner(a.replace('snap2sell_test_session=','snap2sell_test_session=x')),null);
+ process.env.TEST_LOGIN_PASSWORD='changed';assert.equal(sessionOwner(a),null);
+ delete process.env.TEST_LOGIN_USERNAME;delete process.env.TEST_LOGIN_PASSWORD;delete process.env.TEST_SESSION_SECRET;
+});
+import { previewFromAnalysis } from "../packages/listing";
+test("photo preview fills title and description without confirming or overwriting",()=>{
+ const p=applyAnalysis(emptyProduct('photo'),analysis), draft=previewFromAnalysis(p);
+ assert.ok(draft.title?.includes('G304'));assert.ok(draft.description?.includes('黑色'));assert.ok(!draft.description?.includes('保固'));assert.equal(p.confirmed,false);
+ assert.equal(previewFromAnalysis({...p,title:'custom'}).title,'custom');
+ assert.deepEqual(previewFromAnalysis({...p,analysis:{...analysis,identityConfidence:'uncertain'}}),{});
+});

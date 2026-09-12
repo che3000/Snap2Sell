@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { loginCookie, logoutCookie, testLoginEnabled } from "./test-auth";
 import {
   productSchema,
   preferenceSchema,
@@ -50,6 +51,17 @@ async function profile(
 }
 export async function handle(request: Request, action: string) {
   try {
+    if (["login", "logout"].includes(action) && request.method === "POST") {
+      const origin = request.headers.get("origin");
+      if (origin && origin !== new URL(request.url).origin) throw new AppError("不允許跨網站操作。", 403);
+      const secure = new URL(request.url).protocol === "https:";
+      let cookie = logoutCookie(secure);
+      if (action === "login") {
+        const credentials = z.object({username:z.string().max(100),password:z.string().max(200)}).parse(JSON.parse(await readLimited(request,4096)));
+        cookie = loginCookie(credentials.username, credentials.password, secure);
+      }
+      return new Response(JSON.stringify({ok:true}),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Set-Cookie":cookie}});
+    }
     const user = owner(request);
     if (request.method === "GET") {
       if (action === "bootstrap") {
@@ -68,7 +80,7 @@ export async function handle(request: Request, action: string) {
             ...JSON.parse(r.data),
             version: r.version,
           })),
-          settings: { configured: !!key, model: key?.model || "gpt-4.1-mini" },
+          settings: { configured: testLoginEnabled() ? !!process.env.OPENAI_API_KEY : !!key, shared: testLoginEnabled(), model: testLoginEnabled() ? process.env.OPENAI_MODEL || "gpt-4.1-mini" : key?.model || "gpt-4.1-mini" },
           ...(await profile(user, "main", "")),
         });
       }
@@ -145,6 +157,7 @@ export async function handle(request: Request, action: string) {
     }
     const data = JSON.parse(await readLimited(request, 100_000));
     if (action === "settings") {
+      if (testLoginEnabled()) throw new AppError("共用服務由管理者設定，測試者無須填寫金鑰。", 403);
       const input = z
         .object({
           key: z.string().max(500).optional(),

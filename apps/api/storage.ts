@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { sessionOwner, testLoginEnabled } from "./test-auth";
 import { AppError } from "../../packages/shared/http";
 export function db() {
   if (!env.DB) throw new AppError("資料庫暫時無法使用，請稍後再試。", 503);
@@ -9,7 +10,7 @@ export function bucket() {
   return env.BUCKET;
 }
 export function owner(request: Request) {
-  const id = request.headers.get("oai-authenticated-user-id");
+  const id = testLoginEnabled() ? sessionOwner(request.headers.get("cookie")) : request.headers.get("oai-authenticated-user-id");
   if (!id) throw new AppError("請先登入後再操作。", 401);
   if (!["GET", "HEAD"].includes(request.method)) {
     const origin = request.headers.get("origin");

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { testLoginEnabled } from "./test-auth";
+import { analysisResultSchema } from "../../packages/contracts";
 import type { Product, Preferences } from "../../packages/contracts";
 import { AppError, readLimited } from "../../packages/shared/http";
 import { db, bucket } from "./storage";
@@ -12,6 +14,8 @@ const analysisSchema = {
     brand: textField,
     model: textField,
     category: textField,
+    identityConfidence: {type:"string", enum:["high_confidence", "probable", "uncertain"]},
+    identityEvidence: textField,
     observations: {
       type: "array",
       items: {
@@ -31,7 +35,7 @@ const analysisSchema = {
     },
     questions: { type: "array", items: textField },
   },
-  required: ["name", "brand", "model", "category", "observations", "questions"],
+  required: ["name", "brand", "model", "category", "identityConfidence", "identityEvidence", "observations", "questions"],
 };
 const listingSchema = {
   type: "object",
@@ -55,7 +59,10 @@ export async function ai(
     .prepare("SELECT cipher,model FROM credentials WHERE owner=?")
     .bind(owner)
     .first<{ cipher: string; model: string }>();
-  if (!config) throw new AppError("請先在服務設定填寫 OpenAI API Key。", 409);
+  const shared = testLoginEnabled();
+  const apiKey = shared ? process.env.OPENAI_API_KEY : config ? await unseal(config.cipher, owner) : undefined;
+  const model = shared ? process.env.OPENAI_MODEL || "gpt-4.1-mini" : config?.model;
+  if (!apiKey) throw new AppError(shared ? "管理者尚未啟用共用 AI，照片可先保留。" : "請先在服務設定填寫 OpenAI API Key。", 409);
   const content: (
     | { type: "input_text"; text: string }
     | { type: "input_image"; image_url: string; detail: "auto" }
@@ -81,7 +88,7 @@ export async function ai(
   ];
   if (mode === "analyze") {
     if (!p.images.length) throw new AppError("請先上傳商品照片。");
-    for (const image of p.images.slice(0, 3)) {
+    for (const image of p.images) {
       const meta = await db()
         .prepare("SELECT mime FROM uploads WHERE id=? AND owner=?")
         .bind(image.id, owner)
@@ -100,16 +107,16 @@ export async function ai(
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${await unseal(config.cipher, owner)}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: config.model,
+      model,
       store: false,
       instructions:
         base +
         (mode === "analyze"
-          ? "辨識可見內容，空字串代表未知。每個屬性附上圖片證據及信心。最多問兩個關鍵問題。所有辨識結果都必須待賣家確認。"
+          ? "辨識可見內容，空字串代表未知。每個屬性附上圖片證據及信心。身分判斷需附 identityConfidence 與 identityEvidence。無法區分相似代數或型號時必須降低信心。僅把照片或包裝文字清楚可見的規格列為 high_confidence，不以既有商品欄位或常識當作圖片證據。只拍到包裝不代表內容齊全或商品全新。不辨識或輸出序號、IMEI、地址等個資。最多列出 30 個屬性並問兩個關鍵問題。所有辨識結果都必須待賣家確認。"
           : "生成可編輯草稿。不要把偏好當成產品特色，不要包含內部備註。"),
       input: [{ role: "user", content }],
       text: {
@@ -153,7 +160,8 @@ export async function ai(
     .map((c) => c.text || "")
     .join("");
   try {
-    return JSON.parse(text);
+    const result = JSON.parse(text);
+    return mode === "analyze" ? analysisResultSchema.parse(result) : result;
   } catch {
     throw new AppError("AI 沒有傳回可用資料，請重試。", 502);
   }

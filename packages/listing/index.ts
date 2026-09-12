@@ -24,3 +24,10 @@ export function generateListing(p: Product, prefs: Preferences) {
       : `${intro}\n\n【商品規格】\n${lines.map((l) => `- ${l}`).join("\n")}${p.shipping ? `\n\n【出貨資訊】\n${p.shipping}` : ""}`;
   return { title, description };
 }
+
+/** Editable photo-derived preview, never a confirmed or publishable listing. */
+export function previewFromAnalysis(p: Product) {
+  if (p.analysis?.identityConfidence !== "high_confidence" || !p.analysis.identityEvidence.trim() || !p.name.trim()) return {};
+  const title = p.name.startsWith(p.brand) ? p.name : `${p.brand} ${p.name}`.trim();
+  return {title:p.title || title, description:p.description || [p.name, ...factualLines(p)].join("\n")};
+}

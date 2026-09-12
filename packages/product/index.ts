@@ -1,4 +1,4 @@
-import type { Product } from "../contracts";
+import type { Product, AnalysisResult } from "../contracts";
 export function missingInformation(p: Product) {
   return [
     ...(!p.name.trim() ? ["商品名稱"] : []),
@@ -25,4 +25,27 @@ export function factualLines(p: Product) {
   })
     .filter(([, v]) => v.trim())
     .map(([k, v]) => `${k}：${v}`);
+}
+
+export function emptyProduct(id: string, store = "main"): Product {
+  return { id, store, name:"", brand:"", model:"", category:"", condition:"",
+    attributes:{}, title:"", description:"", price:null, stock:null, shipping:"",
+    warranty:"", variants:"", images:[], confirmed:false, version:0 };
+}
+/** Fill empty fields only. A photo cannot establish price, stock or seller promises. */
+export function applyAnalysis(p: Product, analysis: AnalysisResult): Product {
+  const next = { ...p, attributes: { ...p.attributes }, analysis, confirmed: false };
+  if (analysis.identityConfidence === "high_confidence" && analysis.identityEvidence.trim()) {
+    for (const key of ["name", "brand", "model", "category"] as const) {
+      if (!next[key].trim()) next[key] = analysis[key].trim();
+    }
+  }
+  const reserved = /^(商品名稱|名稱|品牌|型號|商品分類|分類|商品狀況|狀況|售價|價格|庫存|數量|運費|出貨資訊|保固|保固資訊|真偽|認證|現貨)$/;
+  for (const observation of analysis.observations) {
+    const key = observation.label.trim();
+    if (observation.confidence !== "high_confidence" || !observation.evidence.trim() ||
+        !observation.value.trim() || reserved.test(key) || ["__proto__", "constructor", "prototype"].includes(key)) continue;
+    if (!next.attributes[key]?.trim()) next.attributes[key] = observation.value.trim();
+  }
+  return next;
 }

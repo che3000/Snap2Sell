@@ -13,6 +13,7 @@ import { api, type Studio } from "../useStudio";
 export function Settings({ s }: { s: Studio }) {
   const [key, setKey] = useState("");
   const [model, setModel] = useState("");
+  if (s.settings.shared) return <div className="actions"><span className="field-help">{s.settings.configured ? "共用 AI 已啟用" : "等待管理者啟用 AI"}</span><button className="secondary" disabled={!!s.busy} onClick={async()=>{if(s.dirty && !window.confirm("尚有未儲存的編輯。登出會離開此測試空間，確定已匯出需要的資料？"))return;await api("logout",{});window.location.assign("/login")}}>登出</button></div>;
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -36,7 +37,7 @@ export function Settings({ s }: { s: Studio }) {
                 "settings",
                 { key: key || undefined, model: model || s.settings.model },
               );
-              s.setSettings(result);
+              s.setSettings({...result, shared:false});
               setKey("");
               s.notify("服務設定已儲存。");
             });
@@ -85,7 +86,7 @@ export function Settings({ s }: { s: Studio }) {
                 onClick={() =>
                   s.run("settings", async () => {
                     s.setSettings(
-                      await api<{ configured: boolean; model: string }>(
+                      await api<{ configured: boolean; shared: boolean; model: string }>(
                         "settings",
                         { model: s.settings.model, remove: true },
                       ),

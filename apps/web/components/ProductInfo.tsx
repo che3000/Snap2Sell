@@ -1,23 +1,10 @@
 "use client";
 import { useState } from "react";
 import { ImageIcon, Plus, Check, Sparkles } from "lucide-react";
-import { api, type Studio } from "../useStudio";
+import { type Studio } from "../useStudio";
 import { Choice } from "./Choice";
-type Analysis = {
-  name: string;
-  brand: string;
-  model: string;
-  category: string;
-  observations: {
-    label: string;
-    value: string;
-    evidence: string;
-    confidence: string;
-  }[];
-  questions: string[];
-};
 export function ProductInfo({ s }: { s: Studio }) {
-  const [analysis, setAnalysis] = useState<Analysis>();
+  const analysis = s.p.analysis;
   const [attribute, setAttribute] = useState("");
   const p = s.p;
   return (
@@ -31,7 +18,7 @@ export function ProductInfo({ s }: { s: Studio }) {
           <ImageIcon size={27} />
         </div>
         <strong>讓商品先說話</strong>
-        <p>上傳正面、細節或包裝照片</p>
+        <p>上傳後自動辨識並填入空白欄位；請拍攝正面、型號標籤與包裝</p>
         <label className="secondary" style={{ margin: 0, cursor: "pointer" }}>
           <Plus size={16} />
           選擇圖片
@@ -84,26 +71,21 @@ export function ProductInfo({ s }: { s: Studio }) {
         <button
           className="secondary"
           disabled={!!s.busy || !p.images.length || !s.settings.configured}
-          onClick={() =>
-            s.run("analyze", async () => {
-              setAnalysis(await api<Analysis>("analyze", { product: p }));
-              s.notify("圖片分析完成，請核對建議資訊。");
-            })
-          }
+          onClick={s.analyze}
         >
           <Sparkles size={16} />
-          {s.busy === "analyze" ? "正在辨識…" : "AI 辨識圖片"}
+          {s.busy === "analyze" ? "正在辨識…" : "AI 辨識並填入"}
         </button>
       </div>
       {!s.settings.configured && (
         <p className="field-help">
-          可先手動填寫；啟用圖片辨識請至「服務設定」填寫 OpenAI 金鑰。
+          {s.settings.shared ? "共用 AI 尚未啟用，請聯絡管理者；照片仍可上傳保存。" : "可先手動填寫；啟用圖片辨識請至「服務設定」填寫 OpenAI 金鑰。"}
         </p>
       )}
       {analysis && (
         <div className="notice">
-          <h3>AI 辨識建議 · 尚未確認</h3>
-          <p>{[analysis.brand, analysis.name, analysis.model].join(" / ")}</p>
+          <h3>AI 辨識結果 · 已填入資訊與文案草稿，待你確認</h3>
+          <p>{[analysis.brand, analysis.name, analysis.model].join(" / ")}</p><p>身分依據：{analysis.identityEvidence}</p><p>既有欄位會保留；若與照片不符，請先新增商品。</p>
           {analysis.observations.map((o, i) => (
             <p key={i}>
               {o.label}：{o.value}
@@ -116,29 +98,7 @@ export function ProductInfo({ s }: { s: Studio }) {
           {analysis.questions.map((q) => (
             <p key={q}>{q}</p>
           ))}
-          <button
-            className="secondary"
-            onClick={() => {
-              s.update({
-                name: analysis.name || p.name,
-                brand: analysis.brand || p.brand,
-                model: analysis.model || p.model,
-                category: analysis.category || p.category,
-                attributes: {
-                  ...p.attributes,
-                  ...Object.fromEntries(
-                    analysis.observations
-                      .filter((o) => o.confidence === "high_confidence")
-                      .map((o) => [o.label, o.value]),
-                  ),
-                },
-                confirmed: false,
-              });
-              setAnalysis(undefined);
-            }}
-          >
-            帶入高信心建議，再逐項確認
-          </button>
+
         </div>
       )}
       <label>

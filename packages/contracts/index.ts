@@ -16,6 +16,19 @@ export const imageSchema = z.object({
   id: z.string().max(100),
   name: z.string().max(200),
 });
+export const analysisResultSchema = z.object({
+  name: z.string().max(200), brand: z.string().max(100),
+  model: z.string().max(100), category: z.string().max(100),
+  identityConfidence: z.enum(["high_confidence", "probable", "uncertain"]),
+  identityEvidence: z.string().max(1000),
+  observations: z.array(z.object({
+    label: z.string().min(1).max(100), value: z.string().max(500),
+    evidence: z.string().max(1000),
+    confidence: z.enum(["high_confidence", "probable", "uncertain"]),
+  })).max(30),
+  questions: z.array(z.string().max(500)).max(10),
+});
+export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export const productSchema = z.object({
   id: z.string().min(1).max(80),
   name: z.string().max(200),
@@ -32,6 +45,7 @@ export const productSchema = z.object({
   warranty: z.string().max(500),
   variants: z.string().max(1000),
   images: z.array(imageSchema).max(9),
+  analysis: analysisResultSchema.optional(),
   confirmed: z.boolean(),
   version: z.number().int().min(0),
   store: z.string().min(1).max(80),
