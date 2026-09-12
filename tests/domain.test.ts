@@ -7,6 +7,8 @@ import { generateListing } from "../packages/listing";
 import { missingInformation } from "../packages/product";
 import {
   filterComparables,
+  applyMarketFilterPolicy,
+  priceRecommendations,
   priceSummary,
   type MarketItem,
 } from "../packages/market";
@@ -165,6 +167,43 @@ test("minimum comparable sample prevents fabricated price estimates", () => {
     )?.balanced,
     900,
   );
+});
+
+test("global pricing policy changes strategy percentiles without changing market median", () => {
+  const rows = [800, 900, 1000, 1100, 1200].map((price, index) => ({
+    ...item("G304", price, `https://shop${index}.example/item`),
+    included: true,
+    sourceKey: `shop${index}.example`,
+  }));
+  const result = priceRecommendations(rows, {
+    version: "global-test",
+    defaultStrategy: "momentum_price",
+    order: ["momentum_price", "traffic_first", "profit_first"],
+    strategies: {
+      profit_first: { percentile: 0.9 },
+      momentum_price: { percentile: 0.5 },
+      traffic_first: { percentile: 0.1 },
+    },
+  });
+  assert.equal(result?.referenceMarketMedian, 1000);
+  assert.equal(result?.strategies.profit_first.price, 1100);
+  assert.equal(result?.strategies.traffic_first.price, 800);
+});
+
+test("global market policy only filters observed source keys", () => {
+  const rows = [
+    { ...item("G304", 900), sourceKey: "shop-a.example", included: true },
+    { ...item("G304", 1000), sourceKey: "shop-b.example", included: true },
+    { ...item("G304", 1100), sourceKey: "shop-a.example", included: true },
+  ];
+  const filtered = applyMarketFilterPolicy(rows, {
+    version: "global-test",
+    sourceWeights: { "shop-a.example": 1 },
+    sourceAllowList: ["shop-a.example", "unknown.example"],
+    sourceBlockList: [],
+    maxSourceShare: null,
+  });
+  assert.deepEqual(filtered.map((row) => row.included), [true, false, true]);
 });
 
 test("G304 X and mouse skins are not G304 comparables", () => {

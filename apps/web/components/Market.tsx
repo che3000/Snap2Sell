@@ -1,5 +1,10 @@
 "use client";
-import { setMarketInclusion, marketItemIncluded, productLink } from "@/packages/market";
+import {
+  priceForLegacyPreference,
+  setMarketInclusion,
+  marketItemIncluded,
+  productLink
+} from "@/packages/market";
 import { type Studio } from "../useStudio";
 export function Market({ s }: { s: Studio }) {
   const result = s.p.market;
@@ -40,19 +45,22 @@ export function Market({ s }: { s: Studio }) {
                     ["balanced", "市場中位"],
                     ["premium", "較高定價"],
                   ] as const
-                ).map(([key, label]) => (
-                  <button
-                    className={
-                      key === (s.override.pricing || s.prefs.pricing)
-                        ? "primary"
-                        : "secondary"
-                    }
-                    key={key}
-                    onClick={() => s.update({ price: result.summary![key] })}
-                  >
-                    {label} NT${result.summary![key]}
-                  </button>
-                ))}
+                ).map(([key, label]) => {
+                  const price = priceForLegacyPreference(result, key);
+                  return (
+                    <button
+                      className={
+                        key === (s.override.pricing || s.prefs.pricing)
+                          ? "primary"
+                          : "secondary"
+                      }
+                      key={key}
+                      onClick={() => price !== undefined && s.update({ price })}
+                    >
+                      {label} NT${price}
+                    </button>
+                  );
+                })}
               </div>
             </>
           ) : (

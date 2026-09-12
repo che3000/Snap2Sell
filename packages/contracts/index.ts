@@ -12,6 +12,40 @@ export const preferenceSchema = z.object({
 });
 export type Preferences = z.infer<typeof preferenceSchema>;
 export const defaults: Preferences = preferenceSchema.parse({});
+export const pricingStrategySchema = z.enum([
+  "profit_first",
+  "momentum_price",
+  "traffic_first",
+]);
+export type PricingStrategy = z.infer<typeof pricingStrategySchema>;
+export const pricingPolicySchema = z.object({
+  version: z.string().nullable().optional(),
+  defaultStrategy: pricingStrategySchema,
+  order: z.array(pricingStrategySchema).length(3),
+  strategies: z.object({
+    profit_first: z.object({ percentile: z.number().min(0).max(1) }),
+    momentum_price: z.object({ percentile: z.number().min(0).max(1) }),
+    traffic_first: z.object({ percentile: z.number().min(0).max(1) }),
+  }),
+});
+export type PricingPolicy = z.infer<typeof pricingPolicySchema>;
+const priceRecommendationSchema = z.object({
+  percentile: z.number().min(0).max(1),
+  price: z.number().positive(),
+});
+export const priceRecommendationsSchema = z.object({
+  referenceMarketMedian: z.number().positive(),
+  strategies: z.object({
+    profit_first: priceRecommendationSchema,
+    momentum_price: priceRecommendationSchema,
+    traffic_first: priceRecommendationSchema,
+  }),
+  defaultStrategy: pricingStrategySchema,
+  policyVersion: z.string().nullable().optional(),
+});
+export type PriceRecommendations = z.infer<
+  typeof priceRecommendationsSchema
+>;
 export const imageSchema = z.object({
   id: z.string().max(100),
   name: z.string().max(200),
@@ -43,6 +77,11 @@ export const clarifiedResultSchema = analysisResultSchema.extend({
 });
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export const marketResearchSchema = z.object({
+  marketSnapshotId: z.string().optional(),
+  priceRecommendationId: z.string().optional(),
+  globalPolicyVersion: z.string().nullable().optional(),
+  retrievalPlan: z.unknown().optional(),
+  appliedCapabilities: z.array(z.string()).optional(),
   referenceOnly: z.boolean().optional(),
   query: z.string(),
   at: z.string(),
@@ -62,6 +101,7 @@ export const marketResearchSchema = z.object({
         included: z.boolean(),
         manualExcluded: z.boolean().optional(),
         manualIncluded: z.boolean().optional(),
+        sourceKey: z.string().optional(),
       }),
     )
     .max(50),
@@ -76,6 +116,8 @@ export const marketResearchSchema = z.object({
       outliers: z.array(z.string()),
     })
     .nullable(),
+  pricingPolicy: pricingPolicySchema.optional(),
+  priceRecommendations: priceRecommendationsSchema.optional(),
 });
 export type MarketResearch = z.infer<typeof marketResearchSchema>;
 export const sellerFieldsSchema = z.object({
@@ -167,4 +209,10 @@ export type Comparable = {
   variant: string;
   kind: "product" | "accessory" | "bundle";
   fetchedAt: string;
+};
+export type MarketPriceEvidence = {
+  distribution?: Array<{ percentile: number; price: number }>;
+  history?: Array<{ observedAt: string; price: number }>;
+  sampleCount?: number;
+  basis?: "current_listings" | "historical" | "biggo_aggregate";
 };

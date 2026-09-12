@@ -17,6 +17,17 @@ import { generateListing } from "../../packages/listing";
 import { missingInformation } from "../../packages/product";
 import { research } from "../../packages/market/biggo";
 import { ai } from "./openai";
+import {
+  activeGlobalPolicy,
+  activePersonalProfile,
+  feedbackStatements,
+  productIdentityId,
+  saveMarketSnapshot,
+} from "./learning";
+import {
+  processLearningJobs,
+  processLearningJobsAuthorized,
+} from "./learning-orchestrator";
 import { db, bucket, owner } from "./storage";
 import { AppError, json, readLimited } from "../../packages/shared/http";
 import { seal } from "./secrets";
@@ -43,8 +54,22 @@ async function profile(
   const evidence: Evidence[] = events.results.flatMap((r) =>
     JSON.parse(r.data),
   );
+  const personal = await activePersonalProfile(user);
+  const explicitByScope = Object.fromEntries(
+    scopes.map((scope) => [scope, explicit[scope] || {}]),
+  );
+  const explicitOverride = Object.assign({}, ...scopes.map((scope) => explicitByScope[scope]));
+  const resolved = resolvePreferences(explicit, evidence, scopes);
   return {
-    ...resolvePreferences(explicit, evidence, scopes, current),
+    profile: {
+      ...resolved.profile,
+      ...personal.profile,
+      titleFormat: defaults.titleFormat,
+      ...explicitOverride,
+      ...current,
+    },
+    learned: resolved.learned,
+    personalProfileVersion: personal.version,
     explicit,
     evidenceCount: evidence.length,
   };
@@ -77,6 +102,13 @@ export async function handle(request: Request, action: string) {
           "Set-Cookie": cookie,
         },
       });
+    }
+    if (action === "learning" && request.method === "POST") {
+      const processed = await processLearningJobsAuthorized(
+        request.headers.get("x-learning-token"),
+      );
+      if (!processed) throw new AppError("不允許執行 learning worker。", 403);
+      return json({ ok: true });
     }
     const user = owner(request);
     if (request.method === "GET") {
@@ -277,61 +309,131 @@ export async function handle(request: Request, action: string) {
     if (action === "save") {
       const version = p.version + 1;
       const encoded = JSON.stringify({ ...p, version });
-      let saved;
-      if (p.version === 0) {
-        saved = await db()
-          .prepare(
-            "INSERT INTO drafts(owner,id,store,data,version,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(owner,id) DO NOTHING",
-          )
-          .bind(user, p.id, p.store, encoded, version, Date.now())
-          .run();
-      } else {
-        saved = await db()
-          .prepare(
-            "UPDATE drafts SET data=?,store=?,version=?,updated=? WHERE owner=? AND id=? AND version=?",
-          )
-          .bind(encoded, p.store, version, Date.now(), user, p.id, p.version)
-          .run();
+      let generated:
+        | { data: string; observed: number }
+        | undefined;
+      let evidence: Evidence[] = [];
+      if (typeof data.generationId === "string") {
+        generated =
+          (await db()
+            .prepare(
+              "SELECT data,observed FROM generations WHERE id=? AND owner=? AND product=?",
+            )
+            .bind(data.generationId, user, p.id)
+            .first<{ data: string; observed: number }>()) || undefined;
+        if (generated && !generated.observed) {
+          const source = JSON.parse(generated.data);
+          evidence = inferEdits(source, p, p.id, `store:${p.store}`);
+        }
       }
-      if (!saved.meta.changes)
+      const savedAt = Date.now();
+      const draftStatement =
+        p.version === 0
+          ? db()
+              .prepare(
+                "INSERT INTO drafts(owner,id,store,data,version,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(owner,id) DO NOTHING",
+              )
+              .bind(user, p.id, p.store, encoded, version, savedAt)
+          : db()
+              .prepare(
+                "UPDATE drafts SET data=?,store=?,version=?,updated=? WHERE owner=? AND id=? AND version=?",
+              )
+              .bind(encoded, p.store, version, savedAt, user, p.id, p.version);
+      const strategy = p.market?.priceRecommendations
+        ? Object.entries(p.market.priceRecommendations.strategies).find(
+            ([, option]) => option.price === p.price,
+          )?.[0]
+        : undefined;
+      const payload = {
+        generationId:
+          typeof data.generationId === "string" ? data.generationId : undefined,
+        marketSnapshotId: p.market?.marketSnapshotId,
+        priceRecommendationId: p.market?.priceRecommendationId,
+        productIdentityId: productIdentityId(p) || undefined,
+        generated: generated ? JSON.parse(generated.data) : undefined,
+        final: { title: p.title, description: p.description, price: p.price },
+        price: {
+          strategy: strategy || "manual",
+          percentile: strategy && p.market?.priceRecommendations
+            ? p.market.priceRecommendations.strategies[
+                strategy as keyof typeof p.market.priceRecommendations.strategies
+              ].percentile
+            : undefined,
+          recommended:
+            strategy && p.market?.priceRecommendations
+              ? p.market.priceRecommendations.strategies[
+                  strategy as keyof typeof p.market.priceRecommendations.strategies
+                ].price
+              : undefined,
+          referenceBalanced: p.market?.priceRecommendations?.referenceMarketMedian,
+        },
+        marketSources: Object.values(
+          (p.market?.items || []).reduce(
+            (summary, item) => {
+              const key = item.sourceKey || "unknown";
+              const current = summary[key] || {
+                sourceKey: key,
+                includedCount: 0,
+                excludedCount: 0,
+              };
+              if (item.included && !item.manualExcluded) current.includedCount += 1;
+              else current.excludedCount += 1;
+              summary[key] = current;
+              return summary;
+            },
+            {} as Record<
+              string,
+              { sourceKey: string; includedCount: number; excludedCount: number }
+            >,
+          ),
+        ),
+        source: generated ? "save_feedback" : "manual_save",
+      };
+      const feedback = feedbackStatements(db(), {
+        owner: user,
+        product: p,
+        payload,
+        evidence,
+        draftVersion: version,
+        draftUpdatedAt: savedAt,
+        generationId:
+          generated && typeof data.generationId === "string"
+            ? data.generationId
+            : undefined,
+      });
+      const selection = p.market?.priceRecommendationId
+        ? db()
+            .prepare(
+              "UPDATE price_recommendations SET selected_strategy=?,selected_price=?,selected_at=? WHERE id=? AND owner=? AND product=? AND EXISTS (SELECT 1 FROM drafts WHERE owner=? AND id=? AND version=? AND updated=?)",
+            )
+            .bind(
+              strategy || "manual",
+              p.price === null ? null : Math.round(p.price),
+              Date.now(),
+              p.market.priceRecommendationId,
+              user,
+              p.id,
+              user,
+              p.id,
+              version,
+              savedAt,
+            )
+        : null;
+      const saveResults = await db().batch(
+        selection
+          ? [draftStatement, ...feedback.statements, selection]
+          : [draftStatement, ...feedback.statements],
+      );
+      if (!saveResults[0]?.meta.changes)
         throw new AppError(
           "此商品已在另一個視窗更新。請先匯出目前內容，再重新載入草稿。",
           409,
         );
-      if (typeof data.generationId === "string") {
-        const generated = await db()
-          .prepare(
-            "SELECT data,observed FROM generations WHERE id=? AND owner=? AND product=?",
-          )
-          .bind(data.generationId, user, p.id)
-          .first<{ data: string; observed: number }>();
-        if (generated && !generated.observed) {
-          const source = JSON.parse(generated.data);
-          const evidence = inferEdits(source, p, p.id, `store:${p.store}`);
-          await db().batch([
-            db()
-              .prepare(
-                "INSERT INTO events(id,owner,product,scope,kind,data,at) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM generations WHERE id=? AND owner=? AND observed=0)",
-              )
-              .bind(
-                crypto.randomUUID(),
-                user,
-                p.id,
-                `store:${p.store}`,
-                "PREFERENCE_OBSERVATION",
-                JSON.stringify(evidence),
-                Date.now(),
-                data.generationId,
-                user,
-              ),
-            db()
-              .prepare(
-                "UPDATE generations SET observed=1 WHERE id=? AND owner=?",
-              )
-              .bind(data.generationId, user),
-          ]);
-        }
-      }
+      void processLearningJobs(user).catch((error) =>
+        console.error("snap2sell_learning_enqueue_failed", {
+          error: error instanceof Error ? error.name : "Unknown",
+        }),
+      );
       return json({ product: { ...p, version } });
     }
     if (action === "generate") {
@@ -372,7 +474,14 @@ export async function handle(request: Request, action: string) {
       return json(await ai(user, p, "analyze", defaults));
     }
     if (action === "market") {
-      return json(await research(p));
+      const policy = await activeGlobalPolicy();
+      const result = await research(p, {
+        marketPolicy: { ...policy.marketFilter, version: policy.version },
+      });
+      const current = preferenceSchema.partial().parse(data.preferences || {});
+      const prefs = (await profile(user, p.store, p.category, current)).profile;
+      const savedMarket = await saveMarketSnapshot(user, p, result, policy, prefs);
+      return json(savedMarket.result);
     }
     if (action === "review") {
       return json({

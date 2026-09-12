@@ -18,6 +18,7 @@ import { AttributeSelect } from "./AttributeSelect";
 import { SuggestionCards } from "./SuggestionCards";
 import { attributeChoices, attributeKeys } from "@/packages/product/attributes";
 import { listingOptions } from "@/packages/listing/options";
+import { priceForLegacyPreference } from "@/packages/market";
 import type { Studio } from "../useStudio";
 import type { SellerFields } from "@/packages/contracts";
 export const sellerSections = [
@@ -440,7 +441,7 @@ export function SellerForm({ s }: { s: Studio }) {
             ['balanced','市場平衡','採用可比價格中位數'],
             ['premium','較高定價','採用可比價格第 70 百分位'],
           ] as const).map(([key,label,detail])=>{
-            const price=p.market?.summary?.[key];
+            const price=priceForLegacyPreference(p.market, key);
             return <button type="button" key={key} className={`suggestion-card ${price && p.price===price?'is-selected':''}`} disabled={!price || !!s.busy} aria-pressed={!!price && p.price===price} onClick={()=>s.update({price:price!,priceIsSuggested:true})}><span className="suggestion-label">{label}</span><strong className="suggestion-price">{price?`NT$${price.toLocaleString()}`:'等待可比行情'}</strong><span>{detail}</span><span className="suggestion-action">{price?'套用此價格':'至少需要 3 筆可比資料'}</span></button>;
           })}</div>
         </div>

@@ -2,7 +2,17 @@
 import { z } from "zod";
 import type { Product } from "../contracts";
 import { AppError, readLimited } from "../shared/http";
-import { filterComparables, priceSummary, comparisonModel, quoteMarketQuery } from "./index";
+import {
+  filterComparables,
+  applyMarketFilterPolicy,
+  learnedMarketRanking,
+  marketSourceKey,
+  priceSummary,
+  comparisonModel,
+  quoteMarketQuery,
+  type MarketFilterPolicy,
+  type MarketRetrievalPlan,
+} from "./index";
 const responseSchema = z.object({
   result: z.boolean().optional(),
   list: z.array(
@@ -17,11 +27,23 @@ const responseSchema = z.object({
     }),
   ),
 });
-export async function research(p: Product) {
+export async function research(
+  p: Product,
+  options: { marketPolicy?: MarketFilterPolicy } = {},
+) {
   const exactModel = comparisonModel(p);
   const searchModel = exactModel || p.analysis?.model.trim() || "";
   const query = quoteMarketQuery([p.brand || p.analysis?.brand, searchModel || p.name || p.category, p.attributes["容量"]].filter(Boolean).join(" ").trim());
   if (!query) throw new AppError("沒有可搜尋的商品名稱，請先上傳照片或填寫名稱。");
+  const marketPolicy = options.marketPolicy;
+  const retrievalPlan: MarketRetrievalPlan = {
+    policyVersion: marketPolicy?.version || null,
+    query,
+    sourcePriority: marketPolicy?.retrieval?.sourcePriority || [],
+    sourceQuota: marketPolicy?.retrieval?.sourceQuota || {},
+    queryHints: marketPolicy?.retrieval?.queryHints || [],
+    appliedCapabilities: [],
+  };
   const response = await fetch(
     `https://api.biggo.com/api/v1/spa/search/${encodeURIComponent(query)}/product`,
     {
@@ -34,7 +56,7 @@ export async function research(p: Product) {
     JSON.parse(await readLimited(response, 4_000_000)),
   );
   if (result.result === false) throw new AppError("BigGo 未能完成搜尋。", 502);
-  const items = filterComparables(
+  const filtered = filterComparables(
     result.list
       .slice(0, 50)
       .map((x) => {
@@ -46,6 +68,7 @@ export async function research(p: Product) {
           price: x.price,
           currency: x.currency,
           url: /^https?:\/\//.test(raw) ? raw : "",
+          sourceKey: /^https?:\/\//.test(raw) ? marketSourceKey(raw) : undefined,
           min: typeof x.price_range_min === "number" ? x.price_range_min : null,
           max: typeof x.price_range_max === "number" ? x.price_range_max : null,
           reason: "",
@@ -55,6 +78,18 @@ export async function research(p: Product) {
       .filter((x) => x.url),
     { ...p, model:searchModel, condition: p.condition || "全新" },
   );
+  const items = marketPolicy
+    ? applyMarketFilterPolicy(learnedMarketRanking(filtered, marketPolicy), marketPolicy)
+    : filtered;
+  if (marketPolicy) {
+    const applied = retrievalPlan.appliedCapabilities;
+    if (marketPolicy.sourceAllowList.length || marketPolicy.sourceBlockList.length)
+      applied.push("global_source_allow_block_filter");
+    if (marketPolicy.maxSourceShare !== null)
+      applied.push("global_source_share_cap");
+    if (Object.keys(marketPolicy.sourceWeights).length)
+      applied.push("global_source_ranking");
+  }
   return {
     conditionBasis: p.condition || "全新",
     provisional: !p.condition,
@@ -64,5 +99,7 @@ export async function research(p: Product) {
     items,
     summary: exactModel ? priceSummary(items) : null,
     source: "BigGo product_search API",
+    retrievalPlan,
+    appliedCapabilities: retrievalPlan.appliedCapabilities,
   };
 }

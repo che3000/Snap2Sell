@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { marketInputKey } from "@/packages/market";
+import { marketInputKey, priceForLegacyPreference } from "@/packages/market";
 import { previewFromAnalysis } from "@/packages/listing";
 import { emptyProduct, applyAnalysis, correctionQuestion, correctedProduct } from "@/packages/product";
 import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
@@ -158,7 +158,8 @@ export function useStudio() {
     marketResearchSchema.parse(await api("market", { product }));
   const market = () => run("market", async () => {
     const result = await fetchMarket(p);
-    update({market:result, ...(p.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
+    const suggested = priceForLegacyPreference(result, override.pricing || prefs.pricing);
+    update({market:result, ...(p.price === null && suggested ? {price:suggested,priceIsSuggested:true} : {})});
     notify(result.summary ? "市場行情已更新，空白售價已填入建議價格。" : "搜尋完成，可比資料不足，請查看來源或調整型號後重試。");
   });
   const latestProduct = useRef(p);
@@ -174,7 +175,8 @@ export function useStudio() {
       try {
         const result=await fetchMarket(p);
         if(marketInputKey(latestProduct.current)!==key) return;
-        update({market:result,...(latestProduct.current.price===null && result.summary?{price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true}:{})});
+        const suggested = priceForLegacyPreference(result, override.pricing || prefs.pricing);
+        update({market:result,...(latestProduct.current.price===null && suggested?{price:suggested,priceIsSuggested:true}:{})});
         notify(result.summary?'已自動查詢 BigGo，三個建議價格已更新。':'BigGo 已自動搜尋完成，可使用 ✓／✕ 調整採計資料。');
       } catch(error) {
         if(marketInputKey(latestProduct.current)===key) notify(`自動查價失敗：${error instanceof Error?error.message:'請稍後重試'}`,true);
@@ -190,7 +192,8 @@ export function useStudio() {
     notify("商品資訊與文案已填入，正在查詢 BigGo 建議售價…");
     try {
       const result = await fetchMarket(next);
-      update({market:result, ...(next.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
+      const suggested = priceForLegacyPreference(result, override.pricing || prefs.pricing);
+      update({market:result, ...(next.price === null && suggested ? {price:suggested,priceIsSuggested:true} : {})});
       notify(result.summary
         ? `商品資訊、文案及建議售價已整理完成。${result.provisional ? "售價暫以全新品行情參考，確認商品狀況後可重新查價。" : ""}既有售價會保留。`
         : result.referenceOnly ? "商品狀況、已知資訊與文案已填入；BigGo 已搜尋完成，因型號未確認，先展示參考結果而不自動定價。" : "商品資訊與文案已填入；BigGo 可比資料不足，暫無可靠建議售價，可在銷售資訊查看來源並重試。");

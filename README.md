@@ -166,6 +166,9 @@ OPENAI_MODEL=gpt-5.6-terra
 OpenAI 使用 Responses API、`store:false`、嚴格 JSON Schema，回應上限 3,500 tokens，請求逾時 55 秒。模型能否完成回應仍受帳戶額度、模型權限與輸出長度影響；失敗不會自動改用假資料。
 
 偏好順序為本次設定 > 賣場分類 > 賣場 > 使用者 > 預設。修改學習目前處理描述縮短、Emoji 增減、標題括號移除；需至少三件不同商品、80% 一致性及足夠累積權重，使用 30 天半衰期。三版描述模板不等同於完整個人化 AI 生成。
+學習流程使用同一個 Responses API adapter，不需要另外導入 Agent SDK。個人學習可使用該賣家的 credential；global batch 建議設定獨立的 `LEARNING_OPENAI_API_KEY`／`LEARNING_OPENAI_MODEL`，不把任何賣家的 API key 當成全域服務金鑰。`GLOBAL_LEARNING_TRIGGER_COUNT` 預設為 20，`GLOBAL_AGENT_MIN_CONFIDENCE` 預設為 0.7；受保護的 `POST /api/learning` 由排程器帶 `x-learning-token` 消費 D1 queue。
+
+BigGo 依照 https://github.com/Funmula-Corp/BigGo-MCP-Server 的 `product_search` HTTPS API 實作，TW 地區。未在 Worker 執行 Python/stdio MCP；此 adapter 使用同一個搜尋服務，因此不用另架 Python 服務。API 不需要 specification search 的 client credentials。結果含查詢、時間、價格、來源、排除原因；不足 3 筆不估價。來源標題與價格仍須人工核對。
 
 ## 驗證與發布
 
@@ -178,6 +181,7 @@ npm run build
 `npm test` 執行 `tests/domain.test.ts`，不呼叫外部 AI 或 BigGo。測試涵蓋商品辨識套用、修正、登入簽章、分類屬性、描述差異、比價篩選、人工採計、搜尋引號及 `purl` 等。
 
 `python3 tests/integration.py` 是舊的 **Sites 本機身分模式** HTTP 測試，固定指向 localhost:5173 並使用本機模擬 Cookie；不能直接套用目前的共用測試登入模式，也不可指向正式站。若使用共用模式驗證，需先經 `/api/login` 取得 Cookie，再測試 owner 隔離、上傳、問答、保存及版本衝突。臨時人工驗證腳本位於忽略提交的 `work/`，不是可攜式測試套件。
+偏好順序：本次設定 > 賣場分類 > 賣場 > 使用者 > 預設。明確設定立即生效。每次保存會建立個人 profile learning job；PersonalProfileAgent 的 proposal 經 confidence、scope、base version、contradiction 與單次變更維度 gate 後才自動套用，不等待個人筆數門檻。全域 feedback 進入獨立 queue，累積到 `GLOBAL_LEARNING_TRIGGER_COUNT` 才由 GlobalMarketFilter、GlobalPricing、GlobalTitleStructure agents 批次分析。標題不套用個人語氣；描述風格可以個人化。所有文案皆需賣家審核，不保證模型永不產生錯誤。
 
 正式部署由 Sites 管理，`.openai/hosting.json` 保存專案 ID 與 `DB` / `BUCKET` 綁定名稱。流程為：
 
@@ -197,3 +201,26 @@ npm run build
 - 沒有獨立測試者帳號管理、共同店舖權限或即時多人共同編輯；開發協作以 Git 與模組界線為主。
 - 分類樹與屬性選項是目前維護的參考資料，不是完整平台規格。
 - 圖片、型號判定及外部行情仍需人工核對；手動採計可能納入原策略排除的資料。
+上傳完成後自動分析全部圖片（最多9張）。有圖片證據且高信心的名稱、品牌、型號、分類與規格填入空白欄位，同時生成待核對標題及描述；既有編輯不被覆蓋。不明資訊、交易售價、庫存、物流與保固承諾保持待確認。圖片辨識有誤差，結果及證據保存在草稿內，仍需人工核對。AI 失敗時保留已上傳照片，支援重試。
+
+辨識得到型號後會自動查詢 BigGo 並填入建議售價，不要求先確認商品。未知商品狀況暫以全新品行情參考，UI 明示此條件且不改寫商品狀況；不足3筆可比資料不推算。行情結果、來源、時間及建議價格隨草稿保存。手動價格不被覆蓋，修改比價相關欄位會清除過時的行情及自動建議價。
+
+圖片分析回傳追問時，會彈出問答視窗並暫停填入與比價。回答可稍後繼續，問題、答案及等待狀態隨草稿保存；送出後由 OpenAI 整理賣家明確提供的狀況、規格與瑕疵。未知答案不強迫猜測，必要時再追問。問答完成才填入商品資料、整理文案及依狀況重新比價；等待回答時禁止產生確認文案。
+
+最小問答模式：未提供商品狀況時只詢問一次全新／拆封未使用／二手，以按鈕選擇。後端固定問題範圍，不依模型追問品牌、型號、電池或續航，整理回答後不再追問。無法確認身分時使用通用分類名稱整理草稿，品牌、型號仍留空；不據此虛構精確型號行情。
+
+## 賣家中心參考版面
+
+介面依提供的三頁 PDF 改為基本資訊、屬性、商品描述、銷售資訊、運費、其他六區連續表單，固定導覽、優化建議、預覽與儲存列。`SellerForm.tsx` 負責表單，`Editor.tsx` 負責頁面殼與導覽，sellerFieldsSchema 保存 GTIN、物流、包裹、優惠與預約等資料。物流費用僅為 PDF 範例可編輯值，不代表已向平台驗價。影片上限30MB，圖片5MB，描述圖片12張；各媒體參照皆檢查owner。商品規格及優惠是草稿資料，未串接實際 SKU 庫存、促銷、物流或排程上架。
+
+## 分類、動態屬性與三版建議
+
+`packages/product/categories.ts` 保存使用者提供的分類 HTML 中 28 個主分類及現有子樹；未提供的分支保留手動輸入，不代表完整蝦皮分類 API。`packages/product/attributes.ts` 管理手機、耳機、鍵鼠與列印商品的相關欄位與可編輯選項；未知類型只顯示品牌、型號、顏色及已填資料，不推測規格。
+
+`packages/listing/options.ts` 從現有商品事實產生三種名稱與描述格式，前端點選後寫入原有欄位，可再編輯並隨草稿保存。這些是資料整理模板，不會額外呼叫 AI 或新增賣點。`summary.balanced` 永遠是 IQR 過濾後的客觀 p50；三種 global 價格策略預設使用 profit 70、momentum 50、traffic 30 百分位，之後只由通過 gate 的 global policy 調整各自 percentile，不改寫市場中位數。
+
+## AI 缺漏資訊問答
+
+上傳先呼叫 OpenAI 辨識與提出必要問題，`followUpQuestions` 將問題去重並限制最多三題，商品狀況已有答案時不重問。彈窗支援狀況按鈕、自由文字及「不確定」。送出後呼叫 `/api/clarify` 整理賣家答案，接續原有欄位填入、文案預覽與 BigGo 比价流程。缺乏型號或容量而影響比價時可以詢問；不再限制只能問新舊狀況，也不例行追問電池、續航或物流。未知答案留空，不展開反覆問答。
+
+問答彈窗另提供「修正辨識結果／補充說明」自由文字欄位，可一次更正，不必逐題作答；辨識完成後也可從屬性區重新開啟。最新修正優先於舊辨識，修正流程重建身分、屬性與文案，清除舊行情及售價並重新比價。名稱中提及容量仍需回填獨立容量欄位，以利比價。
