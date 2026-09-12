@@ -84,3 +84,19 @@ export function followUpQuestions(p: Product, analysis: AnalysisResult) {
   }
   return [...(conditionMissing?[conditionQuestion]:[]),...new Set(questions)].slice(0,3);
 }
+
+export const correctionQuestion = "修正辨識結果／補充說明";
+/** Explicit seller correction replaces the previous identity and its derived suggestions. */
+export function correctedProduct(p: Product, result: AnalysisResult): Product {
+  return applyAnalysis({...p,name:"",brand:"",model:"",category:"",attributes:{},title:"",description:"",price:null,priceIsSuggested:false,market:undefined},result);
+}
+
+/** Split explicitly returned phone storage from the model for stable price matching. */
+export function normalizeSellerDetails<T extends AnalysisResult>(result:T):T {
+ if (!/iphone|手機/i.test(result.name + result.category + result.model)) return result;
+ const capacities=Array.from(new Set((result.model.match(/\d+\s*(?:GB|TB)/gi) || []).map(v=>v.replace(/\s/g,'').toUpperCase())));
+ if(capacities.length!==1) return result;
+ const observations=[...result.observations];
+ if(!observations.some(o=>o.label==='容量')) observations.push({label:'容量',value:capacities[0],evidence:'賣家問答整理結果中的明確容量',confidence:result.identityConfidence});
+ return {...result,model:result.model.replace(/\d+\s*(?:GB|TB)/gi,'').trim(),observations};
+}

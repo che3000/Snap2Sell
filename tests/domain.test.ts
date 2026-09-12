@@ -313,3 +313,17 @@ test("missing phone identity and storage become followups even when AI omits que
  assert.equal(questions.length,3);assert.match(questions[1],/型號/);assert.match(questions[2],/容量/);
  assert.deepEqual(followUpQuestions({...emptyProduct('phone'),answers:questions.map(question=>({question,answer:'不確定'}))},phone),[]);
 });
+
+import { correctedProduct } from "../packages/product";
+test("seller correction replaces wrong populated fields and clears old derived pricing",()=>{
+ const before={...emptyProduct('correct'),name:'Wrong mouse',brand:'Wrong',model:'G304',category:'滑鼠',attributes:{DPI:'12000'},price:800,title:'old title',description:'old copy',condition:'全新'};
+ const after=correctedProduct(before,{...analysis,name:'Apple iPhone 17',brand:'Apple',model:'iPhone 17',category:'手機',observations:[{label:'容量',value:'256GB',evidence:'賣家修正',confidence:'high_confidence'}]});
+ assert.equal(after.model,'iPhone 17');assert.equal(after.category,'手機');assert.equal(after.attributes.DPI,undefined);assert.equal(after.attributes.容量,'256GB');
+ assert.equal(after.price,null);assert.equal(after.market,undefined);assert.equal(after.description,'');assert.equal(after.title,'');assert.equal(after.confirmed,false);
+});
+
+import {normalizeSellerDetails} from "../packages/product";
+test("seller phone storage is separated from model into attributes",()=>{
+ const fixed=normalizeSellerDetails({...analysis,name:'iPhone 17 256GB',model:'iPhone 17 256GB',category:'手機',observations:[] as typeof analysis.observations});
+ assert.equal(fixed.model,'iPhone 17');assert.equal(fixed.observations[0].value,'256GB');
+});

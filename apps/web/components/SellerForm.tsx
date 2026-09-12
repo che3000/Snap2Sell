@@ -348,6 +348,7 @@ export function SellerForm({ s }: { s: Studio }) {
         {attrs.length > 9 && <button className="text-button" onClick={() => setExpanded(!expanded)}>
           {expanded ? "收合" : "展開全部"} <ChevronDown size={14} />
         </button>}
+        {p.analysis && <button type="button" className="secondary" disabled={!!s.busy} onClick={()=>{s.update({pendingQuestions:true});s.setQuestionsOpen(true);}}>修正辨識結果／補充說明</button>}
         {p.analysis && (
           <details className="seller-analysis">
             <summary>AI 辨識依據與待確認資訊</summary>

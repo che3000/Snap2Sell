@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previewFromAnalysis } from "@/packages/listing";
-import { emptyProduct, applyAnalysis } from "@/packages/product";
+import { emptyProduct, applyAnalysis, correctionQuestion, correctedProduct } from "@/packages/product";
 import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
 import { analysisResultSchema, clarifiedResultSchema, type AnalysisResult } from "@/packages/contracts";
 import { defaults, type Product, type Preferences } from "@/packages/contracts";
@@ -185,7 +185,8 @@ export function useStudio() {
     update({answers:product.answers});
     if (!product.analysis || !answers.length) throw new Error("請先回答或選擇不確定。");
     const result = clarifiedResultSchema.parse(await api("clarify", {product}));
-    const next = {...product,condition:result.condition || product.condition,shipping:result.shipping || product.shipping,warranty:result.warranty || product.warranty,variants:result.variants || product.variants};
+    const corrected = answers.some(a=>a.question===correctionQuestion && a.answer.trim()) ? correctedProduct(product,result) : product;
+    const next = {...corrected,condition:result.condition || product.condition,shipping:result.shipping || product.shipping,warranty:result.warranty || product.warranty,variants:result.variants || product.variants};
     const oldPreview = previewFromAnalysis({...p,title:"",description:""});
     if (p.title === oldPreview.title) next.title = "";
     if (p.description === oldPreview.description) next.description = "";
