@@ -53,14 +53,30 @@ export async function handle(request: Request, action: string) {
   try {
     if (["login", "logout"].includes(action) && request.method === "POST") {
       const origin = request.headers.get("origin");
-      if (origin && origin !== new URL(request.url).origin) throw new AppError("不允許跨網站操作。", 403);
+      if (origin && origin !== new URL(request.url).origin)
+        throw new AppError("不允許跨網站操作。", 403);
       const secure = new URL(request.url).protocol === "https:";
       let cookie = logoutCookie(secure);
       if (action === "login") {
-        const credentials = z.object({username:z.string().max(100),password:z.string().max(200)}).parse(JSON.parse(await readLimited(request,4096)));
-        cookie = loginCookie(credentials.username, credentials.password, secure);
+        const credentials = z
+          .object({
+            username: z.string().max(100),
+            password: z.string().max(200),
+          })
+          .parse(JSON.parse(await readLimited(request, 4096)));
+        cookie = loginCookie(
+          credentials.username,
+          credentials.password,
+          secure,
+        );
       }
-      return new Response(JSON.stringify({ok:true}),{headers:{"Content-Type":"application/json","Cache-Control":"no-store","Set-Cookie":cookie}});
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+          "Set-Cookie": cookie,
+        },
+      });
     }
     const user = owner(request);
     if (request.method === "GET") {
@@ -80,7 +96,15 @@ export async function handle(request: Request, action: string) {
             ...JSON.parse(r.data),
             version: r.version,
           })),
-          settings: { configured: testLoginEnabled() ? !!process.env.OPENAI_API_KEY : !!key, shared: testLoginEnabled(), model: testLoginEnabled() ? process.env.OPENAI_MODEL || "gpt-4.1-mini" : key?.model || "gpt-4.1-mini" },
+          settings: {
+            configured: testLoginEnabled()
+              ? !!process.env.OPENAI_API_KEY
+              : !!key,
+            shared: testLoginEnabled(),
+            model: testLoginEnabled()
+              ? process.env.OPENAI_MODEL || "gpt-4.1-mini"
+              : key?.model || "gpt-4.1-mini",
+          },
           ...(await profile(user, "main", "")),
         });
       }
@@ -100,10 +124,15 @@ export async function handle(request: Request, action: string) {
       throw new AppError("不支援此操作方式。", 405);
     if (action === "upload") {
       const mime = request.headers.get("content-type") || "";
-      if (!["image/jpeg", "image/png", "image/webp"].includes(mime))
-        throw new AppError("僅支援 JPG、PNG、WebP。");
+      const maxBytes =
+        mime === "video/mp4" ? 30 * 1024 * 1024 : 5 * 1024 * 1024;
+      if (
+        !["image/jpeg", "image/png", "image/webp", "video/mp4"].includes(mime)
+      )
+        throw new AppError("僅支援 JPG、PNG、WebP 或 MP4。");
       const len = Number(request.headers.get("content-length"));
-      if (len > 5 * 1024 * 1024) throw new AppError("圖片不得超過 5 MB。", 413);
+      if (len > maxBytes)
+        throw new AppError("圖片限 5 MB，影片限 30 MB。", 413);
       const reader = request.body?.getReader();
       if (!reader) throw new AppError("沒有圖片內容。");
       let size = 0;
@@ -112,9 +141,9 @@ export async function handle(request: Request, action: string) {
         const r = await reader.read();
         if (r.done) break;
         size += r.value.length;
-        if (size > 5 * 1024 * 1024) {
+        if (size > maxBytes) {
           await reader.cancel();
-          throw new AppError("圖片不得超過 5 MB。", 413);
+          throw new AppError("圖片限 5 MB，影片限 30 MB。", 413);
         }
         chunks.push(r.value);
       }
@@ -125,12 +154,16 @@ export async function handle(request: Request, action: string) {
         at += c.length;
       }
       const valid =
-        mime === "image/jpeg"
-          ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
-          : mime === "image/png"
-            ? [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => bytes[i] === v)
-            : new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" &&
-              new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP";
+        mime === "video/mp4"
+          ? new TextDecoder().decode(bytes.slice(4, 8)) === "ftyp"
+          : mime === "image/jpeg"
+            ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
+            : mime === "image/png"
+              ? [137, 80, 78, 71, 13, 10, 26, 10].every(
+                  (v, i) => bytes[i] === v,
+                )
+              : new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" &&
+                new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP";
       if (!valid) throw new AppError("圖片內容與格式不符。");
       const id = crypto.randomUUID();
       let name = "商品照片";
@@ -157,7 +190,8 @@ export async function handle(request: Request, action: string) {
     }
     const data = JSON.parse(await readLimited(request, 100_000));
     if (action === "settings") {
-      if (testLoginEnabled()) throw new AppError("共用服務由管理者設定，測試者無須填寫金鑰。", 403);
+      if (testLoginEnabled())
+        throw new AppError("共用服務由管理者設定，測試者無須填寫金鑰。", 403);
       const input = z
         .object({
           key: z.string().max(500).optional(),
@@ -226,7 +260,12 @@ export async function handle(request: Request, action: string) {
       return json({ ok: true });
     }
     const p = productSchema.parse(data.product);
-    for (const image of p.images) {
+    for (const image of [
+      ...p.images,
+      ...(p.seller?.descriptionImages || []),
+      ...(p.seller?.marketingImage ? [p.seller.marketingImage] : []),
+      ...(p.seller?.video ? [p.seller.video] : []),
+    ]) {
       if (
         !(await db()
           .prepare("SELECT id FROM uploads WHERE id=? AND owner=?")
@@ -325,7 +364,8 @@ export async function handle(request: Request, action: string) {
       });
     }
     if (action === "clarify") {
-      if (!p.analysis || !p.answers?.length) throw new AppError("請先回答辨識問題。");
+      if (!p.analysis || !p.answers?.length)
+        throw new AppError("請先回答辨識問題。");
       return json(await ai(user, p, "clarify", defaults));
     }
     if (action === "analyze") {

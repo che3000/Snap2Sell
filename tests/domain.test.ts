@@ -250,3 +250,9 @@ test("new condition preserves original photo fields and creates a generic listin
  assert.equal(filled.condition,'全新');assert.equal(filled.name,'耳機');assert.equal(filled.attributes.顏色,'黑色');
  assert.ok(previewFromAnalysis(filled).description?.includes('商品狀況：全新'));assert.equal(filled.model,'');
 });
+test("seller centre fields persist and reject invalid quantities and media overflow",()=>{
+ const seller={gtin:'123456789',minPurchase:2,weight:'0.3',width:'15',carriers:[{name:'全家',fee:60,enabled:true}],sku:'SKU-1',scheduledAt:'2026-09-20T12:00'};
+ assert.deepEqual(productSchema.parse({...emptyProduct('seller'),seller}).seller,seller);
+ assert.equal(productSchema.safeParse({...emptyProduct('seller'),seller:{minPurchase:0}}).success,false);
+ assert.equal(productSchema.safeParse({...emptyProduct('seller'),seller:{descriptionImages:Array.from({length:13},()=>({id:'a',name:'a'}))}}).success,false);
+});
