@@ -511,3 +511,22 @@ test('name suggestions stay stable from an empty upload through repeated selecti
  p={...p,name:'賣家修正的 iPhone 17'};
  assert.equal(nameSuggestionBase(p,base),p.name);
 });
+
+import {shopeeConsoleScript} from '../packages/shopee/console';
+import {runInNewContext,Script} from 'node:vm';
+test('Shopee Console export is standalone, treats listing text as data and handles missing fields',async()=>{
+ const title='" ); globalThis.injected = true; // <script> ${oops} `';
+ const script=shopeeConsoleScript({...emptyProduct('console'),name:title,price:500,stock:0,condition:'全新'});
+ new Script(script);
+ const logs:unknown[]=[];
+ const context={location:{hostname:'seller.shopee.tw',pathname:'/portal/product/new'},document:{querySelectorAll:()=>[]},console:{log:(...args:unknown[])=>logs.push(args),error:()=>{},table:()=>{}},setTimeout};
+ const result=await runInNewContext(script,context);
+ assert.equal(result.find((r:any)=>r.field==='商品名稱').status,'需處理');
+ assert.equal(result.find((r:any)=>r.field==='庫存').status,'需處理');
+ assert.equal((context as any).injected,undefined);
+ assert.doesNotMatch(script,/<script>/);
+ assert.ok(logs.length);
+ let queried=false;
+ await runInNewContext(script,{...context,location:{hostname:'example.com',pathname:'/portal/product/new'},document:{querySelectorAll:()=>{queried=true;return [];}}});
+ assert.equal(queried,false);
+});

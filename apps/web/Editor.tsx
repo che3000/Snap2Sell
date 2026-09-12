@@ -17,6 +17,7 @@ import { PreferencePanel } from "./components/Preferences";
 import { ProcessingOverlay } from "./components/ProcessingOverlay";
 import { ProductQuestions } from "./components/ProductQuestions";
 import { SellerForm, sellerSections } from "./components/SellerForm";
+import { ShopeeConsoleExport } from "./components/ShopeeConsoleExport";
 export default function Editor() {
   const s = useStudio(),
     p = s.p;
@@ -288,6 +289,7 @@ export default function Editor() {
             <Download size={14} />
             匯出草稿
           </button>
+          <ShopeeConsoleExport product={p} disabled={!!s.busy || !!p.pendingQuestions} />
         </aside>
       </div>
       <ProcessingOverlay active={s.processing} stage={s.busy} />
