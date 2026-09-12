@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolvePreferences, scopeChain } from "../packages/preferences";
+import {
+  describeDescriptionStyle,
+  inferEdits,
+  resolvePreferences,
+  scopeChain,
+} from "../packages/preferences";
 import { defaults, productSchema, type Evidence } from "../packages/contracts";
 import { samples } from "../fixtures/products";
 import { generateListing } from "../packages/listing";
@@ -114,6 +119,51 @@ test("facts-only listing never creates warranties or specifications", () => {
   assert.ok(!r.description.includes("保固"));
   assert.ok(!r.description.includes("降噪"));
   assert.ok(r.title.includes("AirPods Pro 3"));
+});
+test("description feedback captures greeting and expressive emoji signals", () => {
+  const before = { title: "商品", description: "商品資訊如下。\n規格：256GB" };
+  const after = {
+    title: "商品",
+    description: "嗨～歡迎來看看！👋✨💖📦\n\n商品資訊如下，喜歡的話歡迎下單！",
+  };
+  assert.deepEqual(describeDescriptionStyle(after.description), {
+    charCount: after.description.length,
+    paragraphCount: 2,
+    bulletLineCount: 0,
+    emojiCount: 4,
+    exclamationCount: 2,
+    questionCount: 0,
+    startsWithGreeting: true,
+    hasCallToAction: true,
+  });
+  assert.deepEqual(
+    inferEdits(before, after, "product-1", "store:main").map((row) => [
+      row.dimension,
+      row.value,
+    ]),
+    [
+      ["emoji", "high"],
+      ["greeting", "welcoming"],
+    ],
+  );
+});
+test("personal description profile changes the facts template", () => {
+  const result = generateListing(
+    { ...samples[2], confirmed: true },
+    {
+      ...defaults,
+      tone: "enthusiastic",
+      warmth: "high",
+      emoji: "high",
+      format: "bullets",
+      greeting: "welcoming",
+      cta: "direct",
+    },
+  );
+  assert.match(result.description, /嗨～歡迎來看看/);
+  assert.match(result.description, /👋✨/);
+  assert.match(result.description, /• /);
+  assert.match(result.description, /喜歡的話歡迎直接下單/);
 });
 test("negative stock and huge title rejected", () => {
   assert.equal(

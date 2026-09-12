@@ -10,6 +10,7 @@ import {
 } from "../../packages/contracts";
 import {
   scopeChain,
+  describeDescriptionStyle,
   inferEdits,
   resolvePreferences,
 } from "../../packages/preferences";
@@ -354,6 +355,12 @@ export async function handle(request: Request, action: string) {
         productIdentityId: productIdentityId(p) || undefined,
         generated: generated ? JSON.parse(generated.data) : undefined,
         final: { title: p.title, description: p.description, price: p.price },
+        descriptionStyle: {
+          generated: generated
+            ? describeDescriptionStyle(JSON.parse(generated.data).description || "")
+            : undefined,
+          final: describeDescriptionStyle(p.description),
+        },
         price: {
           strategy: strategy || "manual",
           percentile: strategy && p.market?.priceRecommendations
@@ -431,11 +438,13 @@ export async function handle(request: Request, action: string) {
           "此商品已在另一個視窗更新。請先匯出目前內容，再重新載入草稿。",
           409,
         );
-      void processLearningJobs(user).catch((error) =>
+      const learningTask = processLearningJobs(user).catch((error) =>
         console.error("snap2sell_learning_enqueue_failed", {
           error: error instanceof Error ? error.name : "Unknown",
         }),
       );
+      if (testLoginEnabled() || process.env.DEMO_INLINE_LEARNING === "true")
+        await learningTask;
       return json({ product: { ...p, version } });
     }
     if (action === "generate") {

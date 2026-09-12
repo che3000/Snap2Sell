@@ -2,9 +2,13 @@ import { z } from "zod";
 export const preferenceSchema = z.object({
   length: z.enum(["concise", "medium", "detailed"]).default("medium"),
   tone: z
-    .enum(["professional", "friendly", "y2k", "minimalist"])
+    .enum(["professional", "friendly", "enthusiastic", "y2k", "minimalist"])
     .default("professional"),
-  emoji: z.enum(["none", "low", "medium"]).default("low"),
+  warmth: z.enum(["low", "medium", "high"]).default("medium"),
+  emoji: z.enum(["none", "low", "medium", "high"]).default("low"),
+  format: z.enum(["paragraph", "bullets", "mixed"]).default("mixed"),
+  greeting: z.enum(["none", "brief", "welcoming"]).default("none"),
+  cta: z.enum(["none", "soft", "direct"]).default("none"),
   technical: z.enum(["moderate", "high"]).default("moderate"),
   marketing: z.enum(["low", "moderate"]).default("low"),
   titleFormat: z.enum(["plain", "brackets"]).default("plain"),
@@ -203,6 +207,19 @@ export type Evidence = {
   scope: string;
   weight: number;
 };
+export const descriptionStyleSignalsSchema = z.object({
+  charCount: z.number().int().nonnegative(),
+  paragraphCount: z.number().int().nonnegative(),
+  bulletLineCount: z.number().int().nonnegative(),
+  emojiCount: z.number().int().nonnegative(),
+  exclamationCount: z.number().int().nonnegative(),
+  questionCount: z.number().int().nonnegative(),
+  startsWithGreeting: z.boolean(),
+  hasCallToAction: z.boolean(),
+});
+export type DescriptionStyleSignals = z.infer<
+  typeof descriptionStyleSignalsSchema
+>;
 export type Comparable = {
   title: string;
   price: number;

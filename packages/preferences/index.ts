@@ -1,9 +1,31 @@
-import { defaults, type Preferences, type Evidence } from "../contracts";
+import {
+  defaults,
+  descriptionStyleSignalsSchema,
+  type DescriptionStyleSignals,
+  type Preferences,
+  type Evidence,
+} from "../contracts";
 export const scopeChain = (store: string, category: string) => [
   "seller",
   `store:${store}`,
   `category:${store}:${category}`,
 ];
+export function describeDescriptionStyle(text: string): DescriptionStyleSignals {
+  const normalized = text.trim();
+  const lines = normalized ? normalized.split(/\r?\n/) : [];
+  const nonEmptyLines = lines.filter((line) => line.trim());
+  const emojis = normalized.match(/\p{Extended_Pictographic}/gu) || [];
+  return descriptionStyleSignalsSchema.parse({
+    charCount: text.length,
+    paragraphCount: normalized ? normalized.split(/\n\s*\n/).length : 0,
+    bulletLineCount: nonEmptyLines.filter((line) => /^\s*(?:[-•*]|\d+[.)])\s/.test(line)).length,
+    emojiCount: emojis.length,
+    exclamationCount: (normalized.match(/[!！]/g) || []).length,
+    questionCount: (normalized.match(/[?？]/g) || []).length,
+    startsWithGreeting: /^(?:嗨|哈囉|您好|你好|歡迎|親愛的|大家好)/i.test(normalized),
+    hasCallToAction: /(?:下單|選購|帶回家|帶走|歡迎.*(?:詢問|購買)|喜歡.*(?:下單|帶走)|請確認.*再下單)/.test(normalized),
+  });
+}
 export function inferEdits(
   before: { title: string; description: string },
   after: { title: string; description: string },
@@ -29,16 +51,18 @@ export function inferEdits(
     after.description.length > 15
   )
     add("length", "concise");
-  if (
-    /\p{Extended_Pictographic}/u.test(before.description) &&
-    !/\p{Extended_Pictographic}/u.test(after.description)
-  )
+  const beforeStyle = describeDescriptionStyle(before.description);
+  const afterStyle = describeDescriptionStyle(after.description);
+  if (beforeStyle.emojiCount > 0 && afterStyle.emojiCount === 0)
     add("emoji", "none");
-  if (
-    !/\p{Extended_Pictographic}/u.test(before.description) &&
-    /\p{Extended_Pictographic}/u.test(after.description)
-  )
-    add("emoji", "medium");
+  if (afterStyle.emojiCount > beforeStyle.emojiCount)
+    add("emoji", afterStyle.emojiCount >= 4 ? "high" : "medium");
+  if (afterStyle.emojiCount > 0 && afterStyle.emojiCount < beforeStyle.emojiCount)
+    add("emoji", "low");
+  if (!beforeStyle.startsWithGreeting && afterStyle.startsWithGreeting)
+    add("greeting", "welcoming");
+  if (beforeStyle.startsWithGreeting && !afterStyle.startsWithGreeting)
+    add("greeting", "none");
   if (before.title.includes("【") && !after.title.includes("【"))
     add("titleFormat", "plain");
   return output;

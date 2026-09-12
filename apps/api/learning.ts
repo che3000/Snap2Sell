@@ -1,5 +1,5 @@
 import type { D1Database, D1PreparedStatement } from "@cloudflare/workers-types";
-import { marketResearchSchema, type MarketResearch, type Preferences, type Product } from "../../packages/contracts";
+import { marketResearchSchema, type MarketResearch, type Preferences, type Product, type DescriptionStyleSignals } from "../../packages/contracts";
 import {
   defaultGlobalPolicy,
   defaultPricingPolicy,
@@ -190,6 +190,10 @@ export type FeedbackPayload = {
   priceRecommendationId?: string;
   productIdentityId?: string;
   generated?: { title: string; description: string };
+  descriptionStyle?: {
+    generated?: DescriptionStyleSignals;
+    final: DescriptionStyleSignals;
+  };
   final: { title: string; description: string; price: number | null };
   price?: {
     strategy?: string;

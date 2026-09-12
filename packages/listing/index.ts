@@ -11,17 +11,47 @@ export function generateListing(p: Product, prefs: Preferences) {
       ? `【${p.brand}】${p.name.replace(p.brand, "").trim()}`
       : name;
   const lines = factualLines(p);
-  const mark = prefs.emoji === "medium" ? "✨ " : "";
-  const intro =
-    prefs.tone === "friendly"
-      ? `${mark}${p.name}\n商品資訊整理如下。`
-      : prefs.tone === "y2k"
-        ? `${mark}${p.name} / PRODUCT NOTES`
-        : `${mark}${p.name}`;
-  const description =
+  const emoji = (kind: "greeting" | "title" | "section" | "cta") => {
+    if (prefs.emoji === "none" || prefs.emoji === "low") return "";
+    if (prefs.emoji === "medium") return kind === "title" ? "✨ " : "";
+    return { greeting: "👋✨ ", title: "📦 ", section: "📋 ", cta: "🛒 " }[kind];
+  };
+  const greeting =
+    prefs.greeting === "welcoming"
+      ? `${emoji("greeting")}嗨～歡迎來看看！`
+      : prefs.greeting === "brief"
+        ? `${emoji("greeting")}你好，歡迎來看看。`
+        : "";
+  const introText =
+    prefs.tone === "enthusiastic"
+      ? "很開心為你整理商品資訊，喜歡的話歡迎看看！"
+      : prefs.tone === "friendly"
+        ? "商品資訊整理如下。"
+        : prefs.warmth === "high"
+          ? "商品資訊整理如下，歡迎參考看看。"
+        : prefs.tone === "y2k"
+          ? "/ PRODUCT NOTES"
+          : "";
+  const intro = [greeting, `${emoji("title")}${p.name}`, introText]
+    .filter(Boolean)
+    .join("\n");
+  const formattedLines =
+    prefs.format === "paragraph"
+      ? lines.join("；")
+      : prefs.format === "bullets"
+        ? lines.map((line) => `• ${line}`).join("\n")
+        : `【${emoji("section")}商品規格】\n${lines.map((line) => `- ${line}`).join("\n")}`;
+  const body =
     prefs.length === "concise"
-      ? `${intro}\n${lines.join("\n")}`
-      : `${intro}\n\n【商品規格】\n${lines.map((l) => `- ${l}`).join("\n")}${p.shipping ? `\n\n【出貨資訊】\n${p.shipping}` : ""}`;
+      ? `${intro}\n${formattedLines}`
+      : `${intro}\n\n${formattedLines}${p.shipping ? `\n\n【出貨資訊】\n${p.shipping}` : ""}`;
+  const cta =
+    prefs.cta === "soft"
+      ? "\n\n歡迎確認規格與商品狀況後再下單。"
+      : prefs.cta === "direct"
+        ? `\n\n${emoji("cta")}喜歡的話歡迎直接下單！`
+        : "";
+  const description = `${body}${cta}`;
   return { title, description };
 }
 

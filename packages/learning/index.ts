@@ -45,7 +45,11 @@ const evidenceSchema = z
     dimension: z.enum([
       "length",
       "tone",
+      "warmth",
       "emoji",
+      "format",
+      "greeting",
+      "cta",
       "technical",
       "marketing",
       "pricing",

@@ -133,6 +133,10 @@ export function useStudio() {
         product: p,
         generationId,
       });
+      const latestProfile = await api<{ profile: Preferences }>(
+        `preferences?store=${encodeURIComponent(p.store)}&category=${encodeURIComponent(p.category)}`,
+      );
+      setPrefs(latestProfile.profile);
       setP(result.product);
       setSaved((old) => [result.product, ...old.filter((x) => x.id !== p.id)]);
       working.current[p.id] = { product: result.product, dirty: false };

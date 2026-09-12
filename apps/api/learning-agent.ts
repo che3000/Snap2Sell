@@ -25,13 +25,17 @@ const personalJsonSchema = {
       additionalProperties: false,
       properties: {
         length: { type: "string", enum: ["concise", "medium", "detailed"] },
-        tone: { type: "string", enum: ["professional", "friendly", "y2k", "minimalist"] },
-        emoji: { type: "string", enum: ["none", "low", "medium"] },
+        tone: { type: "string", enum: ["professional", "friendly", "enthusiastic", "y2k", "minimalist"] },
+        warmth: { type: "string", enum: ["low", "medium", "high"] },
+        emoji: { type: "string", enum: ["none", "low", "medium", "high"] },
+        format: { type: "string", enum: ["paragraph", "bullets", "mixed"] },
+        greeting: { type: "string", enum: ["none", "brief", "welcoming"] },
+        cta: { type: "string", enum: ["none", "soft", "direct"] },
         technical: { type: "string", enum: ["moderate", "high"] },
         marketing: { type: "string", enum: ["low", "moderate"] },
         pricing: { type: "string", enum: ["competitive", "balanced", "premium"] },
       },
-      required: ["length", "tone", "emoji", "technical", "marketing", "pricing"],
+      required: ["length", "tone", "warmth", "emoji", "format", "greeting", "cta", "technical", "marketing", "pricing"],
     },
     evidence: {
       type: "array",
@@ -40,7 +44,7 @@ const personalJsonSchema = {
         type: "object",
         additionalProperties: false,
         properties: {
-          dimension: { type: "string", enum: ["length", "tone", "emoji", "technical", "marketing", "pricing"] },
+          dimension: { type: "string", enum: ["length", "tone", "warmth", "emoji", "format", "greeting", "cta", "technical", "marketing", "pricing"] },
           value: { type: "string" },
           reasonCode: { type: "string" },
           weight: { type: "number", minimum: 0, maximum: 10 },
@@ -183,7 +187,7 @@ export function runPersonalProfileAgent(
 ) {
   return requestStructured(
     owner,
-    "分析這位賣家本次 save 與近期 evidence，提出 description style 與 legacy pricing preference 的小幅 delta。沒有證據的欄位請維持目前值。不得提出 titleFormat 或任何個人標題風格變更。",
+    "分析這位賣家本次 save 與近期 evidence，提出 description style 與 legacy pricing preference 的小幅 delta。優先比較 event.generated.description 與 event.final.description，也參考 event.descriptionStyle。使用者明確改寫的語氣、開場招呼、emoji 密度、段落格式、行動呼籲與熱情程度，才可形成個人偏好；單純接受原文不代表要複製該次文案。沒有證據的欄位請維持目前值。不得提出 titleFormat 或任何個人標題風格變更。",
     input,
     personalJsonSchema,
     "personal_profile_proposal",

@@ -27,6 +27,7 @@ const fields: [keyof Prefs, string, [string, string][]][] = [
     [
       ["professional", "專業"],
       ["friendly", "親切"],
+      ["enthusiastic", "熱情"],
       ["y2k", "Y2K"],
       ["minimalist", "極簡"],
     ],
@@ -38,6 +39,43 @@ const fields: [keyof Prefs, string, [string, string][]][] = [
       ["none", "不使用"],
       ["low", "少量"],
       ["medium", "適量"],
+      ["high", "熱情多一點"],
+    ],
+  ],
+  [
+    "warmth",
+    "親切程度",
+    [
+      ["low", "低"],
+      ["medium", "適中"],
+      ["high", "高"],
+    ],
+  ],
+  [
+    "format",
+    "描述格式",
+    [
+      ["paragraph", "段落"],
+      ["bullets", "條列"],
+      ["mixed", "混合"],
+    ],
+  ],
+  [
+    "greeting",
+    "開場招呼",
+    [
+      ["none", "不使用"],
+      ["brief", "簡短"],
+      ["welcoming", "熱情歡迎"],
+    ],
+  ],
+  [
+    "cta",
+    "行動呼籲",
+    [
+      ["none", "不使用"],
+      ["soft", "溫和提醒"],
+      ["direct", "直接呼籲"],
     ],
   ],
   [

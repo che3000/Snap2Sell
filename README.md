@@ -174,7 +174,7 @@ OPENAI_MODEL=gpt-5.6-terra
 OpenAI 使用 Responses API、`store:false`、嚴格 JSON Schema，回應上限 3,500 tokens，請求逾時 55 秒。模型能否完成回應仍受帳戶額度、模型權限與輸出長度影響；失敗不會自動改用假資料。
 
 偏好順序為本次設定 > 賣場分類 > 賣場 > 使用者 > 預設。修改學習目前處理描述縮短、Emoji 增減、標題括號移除；需至少三件不同商品、80% 一致性及足夠累積權重，使用 30 天半衰期。三版描述模板不等同於完整個人化 AI 生成。
-學習流程使用同一個 Responses API adapter，不需要另外導入 Agent SDK。個人學習可使用該賣家的 credential；global batch 建議設定獨立的 `LEARNING_OPENAI_API_KEY`／`LEARNING_OPENAI_MODEL`，不把任何賣家的 API key 當成全域服務金鑰。`GLOBAL_LEARNING_TRIGGER_COUNT` 預設為 20，`GLOBAL_AGENT_MIN_CONFIDENCE` 預設為 0.7；受保護的 `POST /api/learning` 由排程器帶 `x-learning-token` 消費 D1 queue。
+學習流程使用同一個 Responses API adapter，不需要另外導入 Agent SDK。個人學習可使用該賣家的 credential；global batch 建議設定獨立的 `LEARNING_OPENAI_API_KEY`／`LEARNING_OPENAI_MODEL`，不把任何賣家的 API key 當成全域服務金鑰。`GLOBAL_LEARNING_TRIGGER_COUNT` 預設為 20，`GLOBAL_AGENT_MIN_CONFIDENCE` 預設為 0.7；正式環境由排程器帶 `x-learning-token` 呼叫受保護的 `POST /api/learning` 消費 D1 queue，demo 模式則可用 `DEMO_INLINE_LEARNING=true` 在使用者 save 後同步消費一次 queue。
 
 BigGo 依照 https://github.com/Funmula-Corp/BigGo-MCP-Server 的 `product_search` HTTPS API 實作，TW 地區。未在 Worker 執行 Python/stdio MCP；此 adapter 使用同一個搜尋服務，因此不用另架 Python 服務。API 不需要 specification search 的 client credentials。結果含查詢、時間、價格、來源、排除原因；不足 3 筆不估價。來源標題與價格仍須人工核對。
 
