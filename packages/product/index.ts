@@ -59,3 +59,11 @@ export const conditionQuestion = "這件商品是全新、拆封未使用，還�
 export function minimalQuestions(p: Product) {
   return p.condition.trim() ? [] : [conditionQuestion];
 }
+
+/** Uncertain phone generations are not usable identity candidates for pricing. */
+export function normalizeAnalysis(a: AnalysisResult): AnalysisResult {
+  if (a.identityConfidence !== "high_confidence" && /iphone/i.test(a.name + " " + a.model)) {
+    return {...a, name:"Apple iPhone 智慧型手機", model:"", identityEvidence:"外觀辨識為 Apple iPhone 系列候選；照片不足以確認代數、Plus／Pro 版本或容量。"};
+  }
+  return a;
+}

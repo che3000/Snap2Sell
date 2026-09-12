@@ -269,3 +269,10 @@ test("explicit names match AirPods aliases, filter accessories and preserve unce
  const duplicate=filterComparables([row('AirPods Pro3','https://biggo.com.tw/r/?i=shop&id=1&lb=ad'),row('AirPods Pro3','https://biggo.com.tw/r/?i=shop&id=1&lb=search')],p);
  assert.equal(duplicate[1].reason,'重複來源');
 });
+
+import { normalizeAnalysis } from "../packages/product";
+test("uncertain iPhone generation retains series but cannot price an invented generation",()=>{
+ const a=normalizeAnalysis({...analysis,name:'Apple iPhone 14 Plus',model:'iPhone 14 Plus',identityConfidence:'probable'});
+ assert.equal(a.name,'Apple iPhone 智慧型手機');assert.equal(a.model,'');
+ assert.equal(comparisonModel(applyAnalysis(emptyProduct('phone'),a)),'');
+});
