@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { samples } from "@/fixtures/products";
 import { missingInformation, emptyProduct } from "@/packages/product";
 import { useStudio } from "./useStudio";
+import { ProductQuestions } from "./components/ProductQuestions";
 import { Settings } from "./components/Settings";
 import { PreferencePanel } from "./components/Preferences";
 import { ProductInfo } from "./components/ProductInfo";
@@ -75,6 +76,8 @@ export default function Editor() {
   }, []);
   return (
     <div className="studio">
+      <ProductQuestions key={p.id + JSON.stringify(p.analysis?.questions)} s={s}/>
+      {p.pendingQuestions && <div className="notice">AI 正等待你補充商品資訊。<button className="secondary" disabled={!!s.busy} onClick={()=>s.setQuestionsOpen(true)}>繼續回答</button></div>}
       <header className="topbar">
         <a className="brand" href="/">
           <span className="logo">

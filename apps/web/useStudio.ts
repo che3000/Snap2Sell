@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { previewFromAnalysis } from "@/packages/listing";
 import { emptyProduct, applyAnalysis } from "@/packages/product";
 import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
-import { analysisResultSchema } from "@/packages/contracts";
+import { analysisResultSchema, clarifiedResultSchema, type AnalysisResult } from "@/packages/contracts";
 import { defaults, type Product, type Preferences } from "@/packages/contracts";
 export async function api<T = { profile: Preferences }>(
   path: string,
@@ -33,6 +33,7 @@ export function useStudio() {
     configured: false,
     model: "gpt-4.1-mini",
   });
+  const [questionsOpen, setQuestionsOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState(false);
@@ -112,6 +113,7 @@ export function useStudio() {
     setDirty(true);
   };
   const select = (product: Product) => {
+    setQuestionsOpen(false);
     working.current[p.id] = { product: p, dirty, generationId };
     const state = working.current[product.id];
     setP(state?.product || saved.find((x) => x.id === product.id) || product);
@@ -154,11 +156,10 @@ export function useStudio() {
     update({market:result, ...(p.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
     notify(result.summary ? "市場行情已更新，空白售價已填入建議價格。" : "搜尋完成，可比資料不足，請查看來源或調整型號後重試。");
   });
-  const analyzeProduct = async (product: Product) => {
-    const result = analysisResultSchema.parse(await api("analyze", { product }));
+  const finishAnalysis = async (product: Product, result: AnalysisResult) => {
     const next = applyAnalysis(product, result);
     if (next.priceIsSuggested) { next.price = null; next.priceIsSuggested = false; }
-    update({ ...next, ...previewFromAnalysis(next) });
+    update({ ...next, pendingQuestions:false, ...previewFromAnalysis(next) });
     if (!next.model.trim()) {
       notify("無法確定型號，請補拍型號標籤或填入型號後查價。其餘已辨識內容已保留。");
       return;
@@ -175,6 +176,30 @@ export function useStudio() {
       notify(`商品資訊與文案已保留，比價未完成：${error instanceof Error ? error.message : "請重試"}`, true);
     }
   };
+  const analyzeProduct = async (product: Product) => {
+    const result = analysisResultSchema.parse(await api("analyze", { product }));
+    if (result.questions.length) {
+      update({analysis:result,pendingQuestions:true,confirmed:false});
+      setQuestionsOpen(true);
+      notify("AI 需要補充資訊，回答後會整理欄位、文案與建議售價。");
+    } else await finishAnalysis(product,result);
+  };
+  const answerQuestions = (answers: {question:string;answer:string}[]) => run("clarify", async () => {
+    const product = {...p,answers:[...(p.answers || []),...answers].slice(-40)};
+    update({answers:product.answers});
+    const result = clarifiedResultSchema.parse(await api("clarify",{product}));
+    const next = {...product,condition:result.condition || product.condition,shipping:result.shipping || product.shipping,warranty:result.warranty || product.warranty,variants:result.variants || product.variants};
+    const oldPreview = previewFromAnalysis({...p,title:"",description:""});
+    if (p.title === oldPreview.title) next.title = "";
+    if (p.description === oldPreview.description) next.description = "";
+    if (result.questions.length) {
+      update({...next,analysis:result,pendingQuestions:true});
+      notify("還有資訊需要確認，請繼續回答。");
+      return;
+    }
+    setQuestionsOpen(false);
+    await finishAnalysis(next,result);
+  });
   const analyze = () => run("analyze", () => analyzeProduct(p));
   const upload = (files: FileList | null) =>
     run("upload", async () => {
@@ -256,6 +281,9 @@ export function useStudio() {
     generate,
     upload,
     analyze,
+    answerQuestions,
+    questionsOpen,
+    setQuestionsOpen,
     market,
     exportDraft,
     setPrefs,

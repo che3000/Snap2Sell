@@ -28,6 +28,7 @@ export const analysisResultSchema = z.object({
   })).max(30),
   questions: z.array(z.string().max(500)).max(10),
 });
+export const clarifiedResultSchema = analysisResultSchema.extend({condition:z.enum(["", "全新", "二手", "拆封未使用"]),shipping:z.string().max(300),warranty:z.string().max(500),variants:z.string().max(1000)});
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export const marketResearchSchema = z.object({
   query: z.string(), at: z.string(), source: z.string(), conditionBasis: z.string(), provisional: z.boolean(),
@@ -52,6 +53,8 @@ export const productSchema = z.object({
   warranty: z.string().max(500),
   variants: z.string().max(1000),
   images: z.array(imageSchema).max(9),
+  pendingQuestions: z.boolean().optional(),
+  answers: z.array(z.object({question:z.string().max(500),answer:z.string().min(1).max(1000)})).max(40).optional(),
   analysis: analysisResultSchema.optional(),
   market: marketResearchSchema.optional(),
   confirmed: z.boolean(),

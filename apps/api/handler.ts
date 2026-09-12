@@ -296,6 +296,7 @@ export async function handle(request: Request, action: string) {
       return json({ product: { ...p, version } });
     }
     if (action === "generate") {
+      if (p.pendingQuestions) throw new AppError("請先完成商品補充問答。");
       if (!p.confirmed) throw new AppError("請先確認商品身分。");
       const current = preferenceSchema.partial().parse(data.preferences || {});
       const prefs = (await profile(user, p.store, p.category, current)).profile;
@@ -322,6 +323,10 @@ export async function handle(request: Request, action: string) {
         source: data.useAI ? "openai" : "facts_template",
         requiresReview: true,
       });
+    }
+    if (action === "clarify") {
+      if (!p.analysis || !p.answers?.length) throw new AppError("請先回答辨識問題。");
+      return json(await ai(user, p, "clarify", defaults));
     }
     if (action === "analyze") {
       return json(await ai(user, p, "analyze", defaults));

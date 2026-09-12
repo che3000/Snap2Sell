@@ -225,3 +225,13 @@ test("opened-unused comparables do not silently use used products",()=>{
  const rows=filterComparables([item('拆封未使用 Logitech G304',800),item('二手 Logitech G304',500)],{...samples[1],condition:'拆封未使用'});
  assert.deepEqual(rows.map(x=>x.included),[true,false]);
 });
+
+import { clarifiedResultSchema } from "../packages/contracts";
+test("clarification keeps answers and pending questions in saved product contract",()=>{
+ const p=productSchema.parse({...emptyProduct('qa'),analysis,pendingQuestions:true,answers:[{question:'商品狀況？',answer:'二手，外殼有刮痕'}]});
+ assert.equal(p.pendingQuestions,true);assert.equal(p.answers?.[0].answer,'二手，外殼有刮痕');
+ assert.equal(clarifiedResultSchema.safeParse({...analysis,condition:'猜測全新',shipping:'',warranty:'',variants:''}).success,false);
+ const result=clarifiedResultSchema.parse({...analysis,questions:[],condition:'二手',shipping:'',warranty:'',variants:''});
+ const filled=applyAnalysis({...p,condition:result.condition},result);
+ assert.equal(filled.condition,'二手');assert.equal(filled.warranty,'');assert.equal(filled.confirmed,false);
+});

@@ -199,7 +199,7 @@ export function ProductInfo({ s }: { s: Studio }) {
       </div>
       <button
         className="secondary"
-        disabled={!p.name || !p.model || !p.category}
+        disabled={p.pendingQuestions || !p.name || !p.model || !p.category}
         onClick={() => s.update({ confirmed: true })}
       >
         <Check size={16} />
