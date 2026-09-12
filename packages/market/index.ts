@@ -117,3 +117,16 @@ export function quoteMarketQuery(query:string) {
  const cleaned=query.replace(/["“”]/g,"").trim().replace(/\s+/g," ");
  return cleaned ? `"${cleaned}"` : "";
 }
+
+/** Display the merchant destination while retaining the source URL for matching and exclusions. */
+export function productLink(raw:string) {
+ try {
+  const source=new URL(raw);
+  if(!['http:','https:'].includes(source.protocol)) return '#';
+  const purl=source.searchParams.get('purl');
+  if(purl) {
+   try { const target=new URL(purl); if(['http:','https:'].includes(target.protocol)) return target.href; } catch {}
+  }
+  return source.href;
+ } catch { return '#'; }
+}

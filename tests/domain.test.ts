@@ -363,3 +363,11 @@ test("BigGo search wraps normalized product terms in one pair of quotes",()=>{
  assert.equal(quoteMarketQuery('"AirPods Pro 3"'),'"AirPods Pro 3"');
  assert.equal(quoteMarketQuery('  '),'');
 });
+
+import {productLink} from "../packages/market";
+test("merchant hyperlinks use decoded purl with safe source fallback",()=>{
+ const target='https://shop.example/product?id=123&color=white';
+ assert.equal(productLink('https://biggo.com.tw/r/?purl='+encodeURIComponent(target)),target);
+ assert.equal(productLink('https://shop.example/item'),'https://shop.example/item');
+ assert.equal(productLink('https://biggo.com.tw/r/?purl=javascript%3Aalert(1)'),'https://biggo.com.tw/r/?purl=javascript%3Aalert(1)');
+});

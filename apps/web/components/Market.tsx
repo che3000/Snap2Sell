@@ -1,5 +1,5 @@
 "use client";
-import { setMarketInclusion, marketItemIncluded } from "@/packages/market";
+import { setMarketInclusion, marketItemIncluded, productLink } from "@/packages/market";
 import { type Studio } from "../useStudio";
 export function Market({ s }: { s: Studio }) {
   const result = s.p.market;
@@ -67,7 +67,7 @@ export function Market({ s }: { s: Studio }) {
             <p className="field-help">預設依型號、商品狀況與離群價格篩選；✓／✕ 可覆寫系統判斷並立即重算三個建議價格。目前填寫的售價不變，可重新選擇套用。排除記錄會隨草稿儲存，重新查詢會重設。</p>
             {result.items.map((i, n) => (
               <p key={n} style={{ margin: "12px 0" }}>
-                <a href={i.url} target="_blank" rel="noreferrer">
+                <a href={productLink(i.url)} target="_blank" rel="noreferrer">
                   {i.title}
                 </a>
                 <br />
