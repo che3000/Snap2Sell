@@ -29,6 +29,12 @@ export const analysisResultSchema = z.object({
   questions: z.array(z.string().max(500)).max(10),
 });
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
+export const marketResearchSchema = z.object({
+  query: z.string(), at: z.string(), source: z.string(), conditionBasis: z.string(), provisional: z.boolean(),
+  items: z.array(z.object({title:z.string(),price:z.number(),url:z.string(),currency:z.string(),min:z.number().nullable(),max:z.number().nullable(),reason:z.string(),included:z.boolean()})).max(50),
+  summary: z.object({count:z.number(),low:z.number(),high:z.number(),competitive:z.number(),balanced:z.number(),premium:z.number(),outliers:z.array(z.string())}).nullable(),
+});
+export type MarketResearch = z.infer<typeof marketResearchSchema>;
 export const productSchema = z.object({
   id: z.string().min(1).max(80),
   name: z.string().max(200),
@@ -39,6 +45,7 @@ export const productSchema = z.object({
   attributes: z.record(z.string().max(100), z.string().max(500)),
   title: z.string().max(300),
   description: z.string().max(10000),
+  priceIsSuggested: z.boolean().optional(),
   price: z.number().min(0).max(100000000).nullable(),
   stock: z.number().int().min(0).max(1000000).nullable(),
   shipping: z.string().max(300),
@@ -46,6 +53,7 @@ export const productSchema = z.object({
   variants: z.string().max(1000),
   images: z.array(imageSchema).max(9),
   analysis: analysisResultSchema.optional(),
+  market: marketResearchSchema.optional(),
   confirmed: z.boolean(),
   version: z.number().int().min(0),
   store: z.string().min(1).max(80),

@@ -1,16 +1,7 @@
 "use client";
-import { useState } from "react";
-import { api, type Studio } from "../useStudio";
-import type { MarketItem } from "@/packages/market";
-import type { priceSummary } from "@/packages/market";
-type Research = {
-  query: string;
-  at: string;
-  items: MarketItem[];
-  summary: ReturnType<typeof priceSummary>;
-};
+import { type Studio } from "../useStudio";
 export function Market({ s }: { s: Studio }) {
-  const [result, setResult] = useState<Research>();
+  const result = s.p.market;
   return (
     <div>
       <h3>BigGo 市場價格</h3>
@@ -21,22 +12,19 @@ export function Market({ s }: { s: Studio }) {
       <div className="actions">
         <button
           className="secondary"
-          disabled={!!s.busy || !s.p.confirmed || !s.p.condition}
-          onClick={() =>
-            s.run("market", async () => {
-              setResult(await api<Research>("market", { product: s.p }));
-              s.notify("市場搜尋完成，請核對可比商品。");
-            })
-          }
+          disabled={!!s.busy || !s.p.model.trim()}
+          onClick={s.market}
         >
           {s.busy === "market" ? "正在查詢…" : "查詢市場價格"}
         </button>
       </div>
+      {!s.p.model.trim() && <p className="field-help">上傳照片辨識或填寫型號後，即可自動或手動查價。</p>}
       {result && (
         <div className="market-results">
           <p>
             搜尋：{result.query} · {new Date(result.at).toLocaleString("zh-TW")}
           </p>
+          <p className="field-help">{result.provisional ? "商品狀況尚未確認，以下為全新品行情參考，不代表此商品為全新。" : `比價條件：${result.conditionBasis}`}</p>
           {result.summary ? (
             <>
               <div className="notice">

@@ -328,6 +328,7 @@ export default function Editor() {
                 <section>
                   <h3>銷售資訊</h3>
                   <div className="two-col">
+                    {p.priceIsSuggested && <p className="field-help">建議售價已自動填入{p.market?.provisional ? "（暫以全新品行情參考）" : ""}，可直接修改。</p>}
                     <label>
                       售價（NT$）
                       <input
@@ -498,6 +499,7 @@ export default function Editor() {
                   ? `NT$${p.price.toLocaleString()}`
                   : "售價待設定"}
               </div>
+              {p.priceIsSuggested && <p className="field-help">BigGo 建議價{p.market?.provisional ? " · 全新品行情參考，商品狀況待確認" : " · 待你核對"}</p>}
               <div className="preview-meta">
                 <span>{p.condition || "狀況待確認"}</span>
                 <span>庫存 {p.stock ?? "—"}</span>

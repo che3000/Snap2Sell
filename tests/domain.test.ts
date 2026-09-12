@@ -215,3 +215,13 @@ test("photo preview fills title and description without confirming or overwritin
  assert.equal(previewFromAnalysis({...p,title:'custom'}).title,'custom');
  assert.deepEqual(previewFromAnalysis({...p,analysis:{...analysis,identityConfidence:'uncertain'}}),{});
 });
+
+test("unconfirmed products can compare new reference prices without claiming condition",()=>{
+ const p={...emptyProduct('test'),model:'G304'};
+ const rows=filterComparables([item('Logitech G304',800),item('Logitech G304',900),item('Logitech G304',1000)],{...p,condition:'全新'});
+ assert.equal(priceSummary(rows)?.balanced,900);assert.equal(p.condition,'');assert.equal(p.confirmed,false);
+});
+test("opened-unused comparables do not silently use used products",()=>{
+ const rows=filterComparables([item('拆封未使用 Logitech G304',800),item('二手 Logitech G304',500)],{...samples[1],condition:'拆封未使用'});
+ assert.deepEqual(rows.map(x=>x.included),[true,false]);
+});

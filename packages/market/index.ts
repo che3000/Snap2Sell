@@ -37,7 +37,9 @@ export function filterComparables(items: MarketItem[], p: Product) {
       /二手|中古|福利|整新|展示|拆封/.test(item.title)
     )
       reason = "商品狀況不同";
-    else if (p.condition !== "全新" && !/二手|中古/.test(item.title))
+    else if (p.condition === "拆封未使用" && !/拆封未使用|全新拆封/.test(item.title))
+      reason = "商品狀況未確認";
+    else if (p.condition === "二手" && !/二手|中古/.test(item.title))
       reason = "商品狀況未確認";
     else if (!Number.isFinite(item.price) || item.price <= 0)
       reason = "價格無效";

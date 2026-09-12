@@ -18,8 +18,8 @@ const responseSchema = z.object({
   ),
 });
 export async function research(p: Product) {
-  if (!p.confirmed || !p.model || !p.condition)
-    throw new AppError("請先確認商品型號與商品狀況。");
+  if (!p.model.trim())
+    throw new AppError("請先填寫或辨識商品型號。");
   const query = [p.brand, p.model, p.attributes["容量"]]
     .filter(Boolean)
     .join(" ");
@@ -54,9 +54,11 @@ export async function research(p: Product) {
         };
       })
       .filter((x) => x.url),
-    p,
+    { ...p, condition: p.condition || "全新" },
   );
   return {
+    conditionBasis: p.condition || "全新",
+    provisional: !p.condition,
     query,
     at: new Date().toISOString(),
     items,

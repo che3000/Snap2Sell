@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previewFromAnalysis } from "@/packages/listing";
 import { emptyProduct, applyAnalysis } from "@/packages/product";
+import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
 import { analysisResultSchema } from "@/packages/contracts";
 import { defaults, type Product, type Preferences } from "@/packages/contracts";
 export async function api<T = { profile: Preferences }>(
@@ -97,13 +98,17 @@ export function useStudio() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
   const update = (patch: Partial<Product>) => {
-    setP((old) => ({
+    setP((old) => {
+      const changed = (["model", "brand", "condition", "attributes"] as const).some(key => key in patch && JSON.stringify(patch[key]) !== JSON.stringify(old[key]));
+      return ({
       ...old,
+      ...(changed ? {market:undefined, ...(old.priceIsSuggested ? {price:null,priceIsSuggested:false} : {})} : {}),
       ...patch,
+      ...("price" in patch ? {priceIsSuggested:patch.priceIsSuggested ?? false} : {}),
       ...(["name", "model", "brand", "attributes"].some((k) => k in patch)
         ? { confirmed: false }
         : {}),
-    }));
+    });});
     setDirty(true);
   };
   const select = (product: Product) => {
@@ -142,11 +147,33 @@ export function useStudio() {
         `${useAI ? "AI" : "依已確認資料"}已產生草稿，請核對後儲存。${r.warnings?.join("；") || ""}`,
       );
     });
+  const fetchMarket = async (product: Product): Promise<MarketResearch> =>
+    marketResearchSchema.parse(await api("market", { product }));
+  const market = () => run("market", async () => {
+    const result = await fetchMarket(p);
+    update({market:result, ...(p.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
+    notify(result.summary ? "市場行情已更新，空白售價已填入建議價格。" : "搜尋完成，可比資料不足，請查看來源或調整型號後重試。");
+  });
   const analyzeProduct = async (product: Product) => {
     const result = analysisResultSchema.parse(await api("analyze", { product }));
     const next = applyAnalysis(product, result);
+    if (next.priceIsSuggested) { next.price = null; next.priceIsSuggested = false; }
     update({ ...next, ...previewFromAnalysis(next) });
-    notify("照片已辨識，有依據的資訊已填入空白欄位。標題與描述已整理為待核對草稿；售價、庫存與出貨資訊需由你填寫。");
+    if (!next.model.trim()) {
+      notify("無法確定型號，請補拍型號標籤或填入型號後查價。其餘已辨識內容已保留。");
+      return;
+    }
+    setBusy("market");
+    notify("商品資訊與文案已填入，正在查詢 BigGo 建議售價…");
+    try {
+      const result = await fetchMarket(next);
+      update({market:result, ...(next.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
+      notify(result.summary
+        ? `商品資訊、文案及建議售價已整理完成。${result.provisional ? "售價暫以全新品行情參考，確認商品狀況後可重新查價。" : ""}既有售價會保留。`
+        : "商品資訊與文案已填入；BigGo 可比資料不足，暫無可靠建議售價，可在銷售資訊查看來源並重試。");
+    } catch (error) {
+      notify(`商品資訊與文案已保留，比價未完成：${error instanceof Error ? error.message : "請重試"}`, true);
+    }
   };
   const analyze = () => run("analyze", () => analyzeProduct(p));
   const upload = (files: FileList | null) =>
@@ -229,6 +256,7 @@ export function useStudio() {
     generate,
     upload,
     analyze,
+    market,
     exportDraft,
     setPrefs,
   };
