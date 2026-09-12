@@ -1,0 +1,10 @@
+# Replace commented assignments with real GitHub handles/teams before enabling required reviews.
+# /apps/web/               FRONTEND_TEAM
+# /apps/api/               BACKEND_TEAM
+# /packages/contracts/    CONTRACT_REVIEWERS
+# /packages/product/      PRODUCT_TEAM
+# /packages/listing/      LISTING_TEAM
+# /packages/preferences/  PERSONALIZATION_TEAM
+# /packages/market/       MARKET_TEAM
+# /db/                    PLATFORM_TEAM
+# /drizzle/               PLATFORM_TEAM
