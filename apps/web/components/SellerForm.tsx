@@ -413,13 +413,6 @@ export function SellerForm({ s }: { s: Studio }) {
         <div className="actions">
           <button
             className="secondary"
-            disabled={!p.confirmed || !s.settings.configured}
-            onClick={() => s.generate(true)}
-          >
-            AI 整理文案
-          </button>
-          <button
-            className="secondary"
             onClick={() =>
               s.run("copy", async () => {
                 await navigator.clipboard.writeText(

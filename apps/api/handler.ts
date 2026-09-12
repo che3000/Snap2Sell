@@ -14,7 +14,7 @@ import {
   inferEdits,
   resolvePreferences,
 } from "../../packages/preferences";
-import { generateListing } from "../../packages/listing";
+import { generateListing, previewFromAnalysis } from "../../packages/listing";
 import { missingInformation } from "../../packages/product";
 import { webPriceResearch } from "./market-fallback";
 import { researchWithFallback } from "../../packages/market/fallback";
@@ -77,6 +77,41 @@ async function profile(
     evidenceCount: evidence.length,
   };
 }
+
+const saveListingSchema = z.object({
+  title: z.string().max(300),
+  description: z.string().max(10000),
+  warnings: z.array(z.string()).max(20),
+});
+
+function shouldUseSaveGeneratedField(
+  product: Product,
+  field: "title" | "description",
+) {
+  const preview = previewFromAnalysis({
+    ...product,
+    title: "",
+    description: "",
+  });
+  const value = product[field].trim();
+  return !value || value === (preview[field] || "").trim();
+}
+
+async function generateSaveListing(user: string, product: Product) {
+  const preferences = (
+    await profile(user, product.store, product.category)
+  ).profile;
+  try {
+    return saveListingSchema.parse(await ai(user, product, "generate", preferences));
+  } catch (error) {
+    // Saving a draft must remain available when the shared AI is unavailable.
+    console.error("snap2sell_save_generation_fallback", {
+      error: error instanceof Error ? error.name : "Unknown",
+    });
+    return { ...generateListing(product, preferences), warnings: [] };
+  }
+}
+
 export async function handle(request: Request, action: string) {
   try {
     if (["login", "logout"].includes(action) && request.method === "POST") {
@@ -310,13 +345,13 @@ export async function handle(request: Request, action: string) {
         throw new AppError("商品包含無權使用的圖片。", 403);
     }
     if (action === "save") {
-      const version = p.version + 1;
-      const encoded = JSON.stringify({ ...p, version });
+      const providedGenerationId =
+        typeof data.generationId === "string" ? data.generationId : undefined;
       let generated:
         | { data: string; observed: number }
         | undefined;
       let evidence: Evidence[] = [];
-      if (typeof data.generationId === "string") {
+      if (providedGenerationId) {
         generated =
           (await db()
             .prepare(
@@ -329,55 +364,103 @@ export async function handle(request: Request, action: string) {
           evidence = inferEdits(source, p, p.id, `store:${p.store}`);
         }
       }
+      let finalProduct = p;
+      let generationId = providedGenerationId;
+      let generationStatement = null;
+      if (
+        !generated &&
+        !providedGenerationId &&
+        p.version === 0 &&
+        p.confirmed &&
+        !p.pendingQuestions &&
+        p.name.trim()
+      ) {
+        const generatedListing = await generateSaveListing(user, p);
+        const generatedData = {
+          title: generatedListing.title,
+          description: generatedListing.description,
+          warnings: generatedListing.warnings,
+        };
+        generationId = crypto.randomUUID();
+        generated = { data: JSON.stringify(generatedData), observed: 0 };
+        generationStatement = db()
+          .prepare(
+            "INSERT INTO generations(id,owner,product,data,at,observed) VALUES(?,?,?,?,?,0)",
+          )
+          .bind(
+            generationId,
+            user,
+            p.id,
+            JSON.stringify(generatedData),
+            Date.now(),
+          );
+        finalProduct = {
+          ...p,
+          ...(shouldUseSaveGeneratedField(p, "title")
+            ? { title: generatedListing.title }
+            : {}),
+          ...(shouldUseSaveGeneratedField(p, "description")
+            ? { description: generatedListing.description }
+            : {}),
+        };
+        evidence = inferEdits(
+          generatedData,
+          finalProduct,
+          finalProduct.id,
+          `store:${finalProduct.store}`,
+        );
+      }
+      const version = finalProduct.version + 1;
+      const encoded = JSON.stringify({ ...finalProduct, version });
       const savedAt = Date.now();
       const draftStatement =
-        p.version === 0
+        finalProduct.version === 0
           ? db()
               .prepare(
                 "INSERT INTO drafts(owner,id,store,data,version,updated) VALUES(?,?,?,?,?,?) ON CONFLICT(owner,id) DO NOTHING",
               )
-              .bind(user, p.id, p.store, encoded, version, savedAt)
+              .bind(user, finalProduct.id, finalProduct.store, encoded, version, savedAt)
           : db()
               .prepare(
                 "UPDATE drafts SET data=?,store=?,version=?,updated=? WHERE owner=? AND id=? AND version=?",
               )
-              .bind(encoded, p.store, version, savedAt, user, p.id, p.version);
-      const strategy = p.market?.priceRecommendations
-        ? Object.entries(p.market.priceRecommendations.strategies).find(
-            ([, option]) => option.price === p.price,
+              .bind(encoded, finalProduct.store, version, savedAt, user, finalProduct.id, finalProduct.version);
+      const strategy = finalProduct.market?.priceRecommendations
+        ? Object.entries(finalProduct.market.priceRecommendations.strategies).find(
+            ([, option]) => option.price === finalProduct.price,
           )?.[0]
         : undefined;
+      const selectedRecommendation =
+        strategy && finalProduct.market?.priceRecommendations
+          ? finalProduct.market.priceRecommendations.strategies[
+              strategy as "profit_first" | "momentum_price" | "traffic_first"
+            ]
+          : undefined;
       const payload = {
-        generationId:
-          typeof data.generationId === "string" ? data.generationId : undefined,
-        marketSnapshotId: p.market?.marketSnapshotId,
-        priceRecommendationId: p.market?.priceRecommendationId,
-        productIdentityId: productIdentityId(p) || undefined,
+        generationId,
+        marketSnapshotId: finalProduct.market?.marketSnapshotId,
+        priceRecommendationId: finalProduct.market?.priceRecommendationId,
+        productIdentityId: productIdentityId(finalProduct) || undefined,
         generated: generated ? JSON.parse(generated.data) : undefined,
-        final: { title: p.title, description: p.description, price: p.price },
+        final: {
+          title: finalProduct.title,
+          description: finalProduct.description,
+          price: finalProduct.price,
+        },
         descriptionStyle: {
           generated: generated
             ? describeDescriptionStyle(JSON.parse(generated.data).description || "")
             : undefined,
-          final: describeDescriptionStyle(p.description),
+          final: describeDescriptionStyle(finalProduct.description),
         },
         price: {
           strategy: strategy || "manual",
-          percentile: strategy && p.market?.priceRecommendations
-            ? p.market.priceRecommendations.strategies[
-                strategy as keyof typeof p.market.priceRecommendations.strategies
-              ].percentile
-            : undefined,
-          recommended:
-            strategy && p.market?.priceRecommendations
-              ? p.market.priceRecommendations.strategies[
-                  strategy as keyof typeof p.market.priceRecommendations.strategies
-                ].price
-              : undefined,
-          referenceBalanced: p.market?.priceRecommendations?.referenceMarketMedian,
+          percentile: selectedRecommendation?.percentile,
+          recommended: selectedRecommendation?.price,
+          referenceBalanced: finalProduct.market?.priceRecommendations?.referenceMarketMedian,
         },
         marketSources: Object.values(
-          (p.market?.items || []).reduce(
+          (finalProduct.market?.items || []).reduce(
             (summary, item) => {
               const key = item.sourceKey || "unknown";
               const current = summary[key] || {
@@ -400,38 +483,35 @@ export async function handle(request: Request, action: string) {
       };
       const feedback = feedbackStatements(db(), {
         owner: user,
-        product: p,
+        product: finalProduct,
         payload,
         evidence,
         draftVersion: version,
         draftUpdatedAt: savedAt,
-        generationId:
-          generated && typeof data.generationId === "string"
-            ? data.generationId
-            : undefined,
+        generationId: generated ? generationId : undefined,
       });
-      const selection = p.market?.priceRecommendationId
+      const selection = finalProduct.market?.priceRecommendationId
         ? db()
             .prepare(
               "UPDATE price_recommendations SET selected_strategy=?,selected_price=?,selected_at=? WHERE id=? AND owner=? AND product=? AND EXISTS (SELECT 1 FROM drafts WHERE owner=? AND id=? AND version=? AND updated=?)",
             )
             .bind(
               strategy || "manual",
-              p.price === null ? null : Math.round(p.price),
+              finalProduct.price === null ? null : Math.round(finalProduct.price),
               Date.now(),
-              p.market.priceRecommendationId,
+              finalProduct.market.priceRecommendationId,
               user,
-              p.id,
+              finalProduct.id,
               user,
-              p.id,
+              finalProduct.id,
               version,
               savedAt,
             )
         : null;
       const saveResults = await db().batch(
         selection
-          ? [draftStatement, ...feedback.statements, selection]
-          : [draftStatement, ...feedback.statements],
+          ? [draftStatement, ...(generationStatement ? [generationStatement] : []), ...feedback.statements, selection]
+          : [draftStatement, ...(generationStatement ? [generationStatement] : []), ...feedback.statements],
       );
       if (!saveResults[0]?.meta.changes)
         throw new AppError(
@@ -443,9 +523,9 @@ export async function handle(request: Request, action: string) {
           error: error instanceof Error ? error.name : "Unknown",
         }),
       );
-      if (testLoginEnabled() || process.env.DEMO_INLINE_LEARNING === "true")
+      if (process.env.DEMO_INLINE_LEARNING !== "false")
         await learningTask;
-      return json({ product: { ...p, version } });
+      return json({ product: { ...finalProduct, version } });
     }
     if (action === "generate") {
       if (p.pendingQuestions) throw new AppError("請先完成商品補充問答。");

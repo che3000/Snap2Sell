@@ -52,7 +52,7 @@ export function useStudio() {
   const run = useCallback(
     async (name: string, fn: () => Promise<void>) => {
       setBusy(name);
-      const blocking=["upload","analyze","clarify"].includes(name);
+      const blocking=["upload","analyze","clarify","save"].includes(name);
       if(blocking) setProcessing(true);
       try {
         await fn();
@@ -143,20 +143,6 @@ export function useStudio() {
       setGenerationId(undefined);
       setDirty(false);
       notify("草稿已儲存。");
-    });
-  const generate = (useAI: boolean) =>
-    run("generate", async () => {
-      const r = await api<{
-        title: string;
-        description: string;
-        generationId: string;
-        warnings: string[];
-      }>("generate", { product: p, preferences: override, useAI });
-      update({ title: r.title, description: r.description });
-      setGenerationId(r.generationId);
-      notify(
-        `${useAI ? "AI" : "依已確認資料"}已產生草稿，請核對後儲存。${r.warnings?.join("；") || ""}`,
-      );
     });
   const fetchMarket = async (product: Product): Promise<MarketResearch> =>
     marketResearchSchema.parse(await api("market", { product }));
@@ -310,7 +296,6 @@ export function useStudio() {
     update,
     select,
     save,
-    generate,
     upload,
     analyze,
     answerQuestions,
