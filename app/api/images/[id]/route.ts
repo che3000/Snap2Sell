@@ -1,3 +1,4 @@
+import {servicesDisabled,stoppedResponse} from "@/packages/shared/service-status";
 import { owner, db, bucket } from "@/apps/api/storage";
 import { AppError, json } from "@/packages/shared/http";
 export const dynamic = "force-dynamic";
@@ -5,6 +6,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if(servicesDisabled())return stoppedResponse();
   try {
     const user = owner(request);
     const { id } = await params;

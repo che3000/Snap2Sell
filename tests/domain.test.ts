@@ -544,3 +544,12 @@ test('imported category paths retain IDs and existing branches',()=>{
  assert.equal(categoryIdForPath('女生衣著 > 上衣'),undefined);
  assert.ok(categories['電腦與周邊配件']['列印機/掃描機']['3D列印機']);
 });
+
+import {servicesDisabled,stoppedResponse} from '../packages/shared/service-status';
+test('shutdown gate returns an uncached 503 response when globally disabled',async()=>{
+ const prior=process.env.SERVICES_DISABLED;
+ try{process.env.SERVICES_DISABLED='true';assert.equal(servicesDisabled(),true);
+ const response=stoppedResponse();assert.equal(response.status,503);assert.equal(response.headers.get('cache-control'),'no-store');assert.match(await response.text(),/服務已停用/);
+ process.env.SERVICES_DISABLED='false';assert.equal(servicesDisabled(),false);
+ }finally{if(prior===undefined)delete process.env.SERVICES_DISABLED;else process.env.SERVICES_DISABLED=prior;}
+});

@@ -1,3 +1,4 @@
+import {servicesDisabled,stoppedResponse} from "../../packages/shared/service-status";
 import { z } from "zod";
 import { loginCookie, logoutCookie, testLoginEnabled } from "./test-auth";
 import {
@@ -113,6 +114,7 @@ async function generateSaveListing(user: string, product: Product) {
 }
 
 export async function handle(request: Request, action: string) {
+  if(servicesDisabled())return stoppedResponse();
   try {
     if (["login", "logout"].includes(action) && request.method === "POST") {
       const origin = request.headers.get("origin");
