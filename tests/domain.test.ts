@@ -276,3 +276,24 @@ test("uncertain iPhone generation retains series but cannot price an invented ge
  assert.equal(a.name,'Apple iPhone 智慧型手機');assert.equal(a.model,'');
  assert.equal(comparisonModel(applyAnalysis(emptyProduct('phone'),a)),'');
 });
+
+import { attributeKeys } from "../packages/product/attributes";
+import { categories } from "../packages/product/categories";
+import { listingOptions } from "../packages/listing/options";
+test("attributes follow product type without irrelevant headphone fields",()=>{
+ const phone={...emptyProduct('phone'),name:'Apple iPhone 17',attributes:{賣家備註:'已測試'}};
+ assert.ok(attributeKeys(phone).includes('容量'));assert.ok(!attributeKeys(phone).includes('耳機'));assert.ok(!attributeKeys(phone).includes('DPI'));
+ assert.ok(attributeKeys(phone).includes('賣家備註'));
+ assert.ok(attributeKeys({...phone,name:'Logitech G304',category:'滑鼠'}).includes('DPI'));
+ assert.deepEqual(attributeKeys(emptyProduct('blank')),['型號','顏色']);
+ assert.ok(categories['電腦與周邊配件']['列印機/掃描機']['墨水匣']);
+});
+test("three listing alternatives preserve facts and omit unsupported promises",()=>{
+ const p={...emptyProduct('options'),name:'Apple iPhone 17',condition:'全新',attributes:{容量:'256GB',顏色:'白色'}};
+ const options=listingOptions(p);
+ assert.equal(options.names.length,3);assert.equal(options.descriptions.length,3);
+ assert.equal(new Set(options.names.map(o=>o.text)).size,3);
+ for(const o of [...options.names,...options.descriptions]) assert.doesNotMatch(o.text,/免運|一年保固|現貨/);
+ assert.ok(options.names.every(o=>o.text.length<=60));
+ assert.deepEqual(listingOptions(emptyProduct('empty')),{names:[],descriptions:[]});
+});

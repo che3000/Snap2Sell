@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ImagePlus,
   Video,
@@ -13,6 +13,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Choice } from "./Choice";
 import { Market } from "./Market";
+import { CategoryPicker } from "./CategoryPicker";
+import { AttributeSelect } from "./AttributeSelect";
+import { SuggestionCards } from "./SuggestionCards";
+import { attributeChoices, attributeKeys } from "@/packages/product/attributes";
+import { listingOptions } from "@/packages/listing/options";
 import type { Studio } from "../useStudio";
 import type { SellerFields } from "@/packages/contracts";
 export const sellerSections = [
@@ -38,39 +43,6 @@ const shippingDefaults = [
   fee: Number(fee),
   enabled: false,
 }));
-const attributes = [
-  "連接類型",
-  "耳機",
-  "電競專用",
-  "適用設備",
-  "最高頻率響應",
-  "最低頻率響應",
-  "靈敏度",
-  "運動專用",
-  "耳機配件",
-  "顏色",
-  "型號",
-  "保固類型",
-  "產地",
-  "材質",
-  "阻抗",
-  "麥克風",
-  "防水等級",
-  "電池容量",
-  "續航時間",
-  "充電接口",
-  "重量",
-  "尺寸",
-  "包裝內容",
-];
-const choices: Record<string, string[]> = {
-  連接類型: ["無線", "有線", "藍牙"],
-  耳機: ["入耳式", "耳罩式", "耳塞式"],
-  電競專用: ["是", "否"],
-  運動專用: ["是", "否"],
-  適用設備: ["手機", "電腦", "平板", "遊戲主機"],
-  麥克風: ["有", "無"],
-};
 export function SellerForm({ s }: { s: Studio }) {
   const p = s.p,
     fields = p.seller || {};
@@ -78,9 +50,12 @@ export function SellerForm({ s }: { s: Studio }) {
   const [variants, setVariants] = useState(!!p.variants);
   const set = (patch: Partial<SellerFields>) =>
     s.update({ seller: { ...fields, ...patch } });
-  const attrs = Array.from(
-    new Set([...(p.model ? ["型號"] : []), ...Object.keys(p.attributes), ...attributes]),
-  );
+  const attrs = attributeKeys(p);
+  const [proposalBase, setProposalBase] = useState(p.name);
+  const proposals = listingOptions({...p,name:proposalBase || p.name});
+  useEffect(() => {
+    if (!proposals.names.some(o=>o.text===p.name)) setProposalBase(p.name);
+  }, [p.name]);
   const media = (
     file: File | undefined,
     kind: "marketingImage" | "video" | "descriptionImages",
@@ -311,14 +286,10 @@ export function SellerForm({ s }: { s: Studio }) {
             <span>{p.name.length}/60</span>
           </div>
         </label>
+        <SuggestionCards label="商品名稱建議" options={proposals.names} value={p.name} disabled={!!s.busy || !!p.pendingQuestions} onSelect={name=>s.update({name,title:name})} />
         <label className="required">
           類別
-          <input
-            aria-label="類別"
-            value={p.category}
-            onChange={(e) => s.update({ category: e.target.value })}
-            placeholder="請選擇商品類別"
-          />
+          <CategoryPicker value={p.category} onChange={category=>s.update({category})} />
         </label>
         {p.analysis?.category && (
           <div className="seller-category">
@@ -357,17 +328,12 @@ export function SellerForm({ s }: { s: Studio }) {
           完成度：
           {Object.values(p.attributes).filter(Boolean).length +
             (p.brand ? 1 : 0)}{" "}
-          / {attrs.length + 1}　填寫更多的屬性資料來加強您商品的曝光機會
+          / {attrs.length + 1}　依商品類型顯示相關欄位
         </p>
         <div className="seller-attributes">
           <label className="required">
             品牌
-            <input
-              aria-label="品牌"
-              value={p.brand}
-              onChange={(e) => s.update({ brand: e.target.value })}
-              placeholder="請選擇或輸入"
-            />
+            <AttributeSelect label="品牌" value={p.brand} options={attributeChoices.品牌} onChange={brand=>s.update({brand})} />
           </label>
           {attrs.slice(0, expanded ? attrs.length : 9).map((key) => (
             <label
@@ -375,43 +341,13 @@ export function SellerForm({ s }: { s: Studio }) {
               className={key === "連接類型" || key === "耳機" ? "required" : ""}
             >
               {key}
-              {key === "型號" ? (
-                <input
-                  value={p.model}
-                  onChange={(e) => s.update({ model: e.target.value })}
-                />
-              ) : choices[key] ? (
-                <Choice
-                  label={key}
-                  value={p.attributes[key] || ""}
-                  options={Array.from(
-                    new Set([
-                      ...choices[key],
-                      ...(p.attributes[key] ? [p.attributes[key]] : []),
-                    ]),
-                  ).map((v) => [v, v])}
-                  onChange={(v) =>
-                    s.update({ attributes: { ...p.attributes, [key]: v } })
-                  }
-                />
-              ) : (
-                <input
-                  aria-label={key}
-                  value={p.attributes[key] || ""}
-                  placeholder="請輸入"
-                  onChange={(e) =>
-                    s.update({
-                      attributes: { ...p.attributes, [key]: e.target.value },
-                    })
-                  }
-                />
-              )}
+              <AttributeSelect label={key} value={key === "型號" ? p.model : p.attributes[key] || ""} options={attributeChoices[key]} onChange={value=>s.update(key === "型號" ? {model:value} : {attributes:{...p.attributes,[key]:value}})} />
             </label>
           ))}
         </div>
-        <button className="text-button" onClick={() => setExpanded(!expanded)}>
+        {attrs.length > 9 && <button className="text-button" onClick={() => setExpanded(!expanded)}>
           {expanded ? "收合" : "展開全部"} <ChevronDown size={14} />
-        </button>
+        </button>}
         {p.analysis && (
           <details className="seller-analysis">
             <summary>AI 辨識依據與待確認資訊</summary>
@@ -433,6 +369,8 @@ export function SellerForm({ s }: { s: Studio }) {
       </section>
       <section id="description" className="seller-card">
         <h2>商品描述</h2>
+        <SuggestionCards label="商品描述建議" options={proposals.descriptions} value={p.description} disabled={!!s.busy || !!p.pendingQuestions} onSelect={description=>s.update({description})} />
+        <p className="field-help">三個版本依目前商品資料整理；未知規格不會補寫，套用後仍可自行修改。</p>
         <label className="required">商品描述</label>
         <div className="seller-description">
           <div className="seller-description-toolbar">
@@ -494,6 +432,17 @@ export function SellerForm({ s }: { s: Studio }) {
       </section>
       <section id="sales" className="seller-card">
         <h2>銷售資訊</h2>
+        <div className="suggestions">
+          <div className="suggestions-heading"><strong>建議售價</strong><span>依 BigGo 可比行情</span></div>
+          <div className="suggestion-grid">{([
+            ['competitive','價格競爭','採用可比價格第 30 百分位'],
+            ['balanced','市場平衡','採用可比價格中位數'],
+            ['premium','較高定價','採用可比價格第 70 百分位'],
+          ] as const).map(([key,label,detail])=>{
+            const price=p.market?.summary?.[key];
+            return <button type="button" key={key} className={`suggestion-card ${price && p.price===price?'is-selected':''}`} disabled={!price || !!s.busy} aria-pressed={!!price && p.price===price} onClick={()=>s.update({price:price!,priceIsSuggested:true})}><span className="suggestion-label">{label}</span><strong className="suggestion-price">{price?`NT$${price.toLocaleString()}`:'等待可比行情'}</strong><span>{detail}</span><span className="suggestion-action">{price?'套用此價格':'至少需要 3 筆可比資料'}</span></button>;
+          })}</div>
+        </div>
         <label>規格</label>
         {variants ? (
           <label>

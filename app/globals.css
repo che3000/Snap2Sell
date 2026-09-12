@@ -1721,3 +1721,21 @@ label,
     gap: 6px;
   }
 }
+
+.category-levels { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.category-levels select { flex: 1; min-width: 150px; }
+.seller-card select { width:100%; border:1px solid #ddd; border-radius:4px; padding:10px 12px; background:#fff; color:#333; font:inherit; }
+.seller-attributes select + input { margin-top:6px; }
+.suggestions { margin:20px 0; }
+.suggestions-heading { display:flex; justify-content:space-between; gap:10px; align-items:baseline; margin-bottom:12px; }
+.suggestions-heading span { font-size:12px; color:#777; }
+.suggestion-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.suggestion-card { display:flex; flex-direction:column; text-align:left; gap:12px; padding:14px; border:1px solid #ddd; border-radius:8px; background:#fff; color:#333; min-width:0; font:inherit; cursor:pointer; }
+.suggestion-card:hover { border-color:#ee4d2d; background:#fff9f6; }
+.suggestion-card.is-selected { border-color:#ee4d2d; background:#fff4ee; box-shadow:0 0 0 1px #ee4d2d; }
+.suggestion-card:disabled { opacity:.6; cursor:default; }
+.suggestion-label { font-size:12px; font-weight:600; color:#b94726; }
+.suggestion-text { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; max-height:220px; overflow:auto; line-height:1.65; }
+.suggestion-action { margin-top:auto; padding-top:10px; font-size:12px; color:#c4482e; }
+.suggestion-price { font-size:22px; }
+@media(max-width:680px) { .suggestion-grid { grid-template-columns:1fr; } .suggestions-heading { align-items:flex-start; flex-direction:column; } }
