@@ -241,8 +241,8 @@ test("minimal questions only ask condition once; uncertain identity never invent
  assert.deepEqual(minimalQuestions(emptyProduct("x")),[conditionQuestion]);
  assert.deepEqual(minimalQuestions({...emptyProduct("x"),condition:"全新"}),[]);
  const p=applyAnalysis(emptyProduct("x"),{...analysis,identityConfidence:"probable",name:"Possible specific model",category:"耳機"});
- assert.equal(p.name,"耳機");assert.equal(p.brand,"");assert.equal(p.model,"");
- assert.equal(previewFromAnalysis(p).title,"耳機");
+ assert.equal(p.name,"Possible specific model（AI 候選，待確認）");assert.equal(p.brand,"");assert.equal(p.model,"");
+ assert.equal(previewFromAnalysis(p).title,p.name);
 });
 test("new condition preserves original photo fields and creates a generic listing without model",()=>{
  const original={...analysis,model:'',brand:'',name:'',category:'耳機',identityConfidence:'uncertain' as const};
@@ -255,4 +255,17 @@ test("seller centre fields persist and reject invalid quantities and media overf
  assert.deepEqual(productSchema.parse({...emptyProduct('seller'),seller}).seller,seller);
  assert.equal(productSchema.safeParse({...emptyProduct('seller'),seller:{minPurchase:0}}).success,false);
  assert.equal(productSchema.safeParse({...emptyProduct('seller'),seller:{descriptionImages:Array.from({length:13},()=>({id:'a',name:'a'}))}}).success,false);
+});
+
+import { comparisonModel } from "../packages/market";
+test("explicit names match AirPods aliases, filter accessories and preserve uncertainty",()=>{
+ const p={...emptyProduct('pricing'),name:'Airpods Pro 3',condition:'全新'};
+ const row=(title:string,url=title)=>({title,url,price:6000,currency:'TWD',min:null,max:null,reason:'',included:false});
+ const rows=filterComparables([row('Apple 2025 AirPods Pro 3 白色'),row('全新未拆 AirPods Pro3'),row('AirPods Pro(3代)'),row('AirPods Pro 2'),row('AirPods Pro 3 保護殼'),row('iPhone 17 AirPods Pro 3 超值組')],p);
+ assert.deepEqual(rows.map(x=>x.included),[true,true,true,false,false,false]);
+ assert.equal(rows[4].reason,'配件或零件');assert.equal(rows[5].reason,'組合或非單品價格');
+ assert.equal(comparisonModel({...p,name:'AirPods Pro 3（AI 候選，待確認）'}),'');
+ assert.equal(filterComparables([row('手機')],emptyProduct('unknown'))[0].reason,'商品型號尚未確認');
+ const duplicate=filterComparables([row('AirPods Pro3','https://biggo.com.tw/r/?i=shop&id=1&lb=ad'),row('AirPods Pro3','https://biggo.com.tw/r/?i=shop&id=1&lb=search')],p);
+ assert.equal(duplicate[1].reason,'重複來源');
 });

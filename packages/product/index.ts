@@ -40,6 +40,9 @@ export function applyAnalysis(p: Product, analysis: AnalysisResult): Product {
       if (!next[key].trim()) next[key] = analysis[key].trim();
     }
   }
+  if (!next.name.trim() && analysis.identityEvidence.trim() && analysis.identityConfidence === "probable" && analysis.name.trim()) {
+    next.name = `${analysis.name.trim()}（AI 候選，待確認）`;
+  }
   if (!next.name.trim() && analysis.category.trim()) next.name = analysis.category.trim();
   if (!next.category.trim() && analysis.category.trim()) next.category = analysis.category.trim();
   const reserved = /^(商品名稱|名稱|品牌|型號|商品分類|分類|商品狀況|狀況|售價|價格|庫存|數量|運費|出貨資訊|保固|保固資訊|真偽|認證|現貨)$/;

@@ -9,15 +9,30 @@ export type MarketItem = {
   reason: string;
   included: boolean;
 };
+const compact = (s: string) => s.toLowerCase().replace(/pro\s*[（(]?(\d+)\s*代?[）)]?/g, "pro$1").replace(/[\s\-]/g, "");
+/** Resolve explicit model names, never promote an AI-labelled candidate to confirmed identity. */
+export function comparisonModel(p: Product) {
+  if (p.model.trim()) return p.model.trim();
+  if (/候選|待確認|可能|疑似/.test(p.name)) return "";
+  const matches = p.name.match(/airpods\s*pro\s*[（(]?\d+\s*代?[）)]?|iphone\s*\d+(?:\s*(?:pro\s*max|pro|plus|air))?|g304(?:x|ii|2)?/gi) || [];
+  return matches.length === 1 ? matches[0].trim() : "";
+}
+function sourceKey(raw: string) {
+  try {
+    const u = new URL(raw);
+    if (u.hostname === "biggo.com.tw" && u.searchParams.has("i") && u.searchParams.has("id")) return `${u.searchParams.get("i")}:${u.searchParams.get("id")}`;
+    return raw;
+  } catch { return raw; }
+}
 export function filterComparables(items: MarketItem[], p: Product) {
-  const compact = (s: string) => s.toLowerCase().replace(/[\s\-]/g, "");
-  const model = compact(p.model);
+  const model = compact(comparisonModel(p));
   const capacity = p.attributes["容量"];
   const seen = new Set<string>();
   return items.map((item) => {
     let reason = "";
     const title = compact(item.title);
-    if (!model || !title.includes(model)) reason = "型號不符";
+    if (!model) reason = "商品型號尚未確認";
+    else if (!title.includes(model)) reason = "型號不符";
     else if (model === "g304" && /g304x|g304ii|g3042/.test(title))
       reason = "版本不符";
     else if (model === "iphone17" && /iphone17(pro|air|plus)/.test(title))
@@ -25,16 +40,16 @@ export function filterComparables(items: MarketItem[], p: Product) {
     else if (capacity && !title.includes(compact(capacity)))
       reason = "容量未確認";
     else if (
-      /保護[套殼膜]|耳塞|耳帽|收納|替換|充電盒|單耳|左耳|右耳|維修|零件|腳貼|微動|電池蓋|防塵|皮套|空盒|按鍵板|接收器|轉接|貼膜|防滑貼|貼紙|吸汗貼/.test(
+      /保護[套殼膜]|耳塞|耳帽|收納|替換|單賣充電盒|充電盒單售|單耳|左耳|右耳|維修|零件|腳貼|微動|電池蓋|防塵|皮套|空盒|按鍵板|接收器|轉接|貼膜|防滑貼|貼紙|吸汗貼/.test(
         item.title,
       )
     )
       reason = "配件或零件";
-    else if (/組合|套組|加購|搭售|綁約|月付|訂金/.test(item.title))
+    else if (/組合|套組|超值組|加購|搭售|綁約|月付|訂金/.test(item.title))
       reason = "組合或非單品價格";
     else if (
       p.condition === "全新" &&
-      /二手|中古|福利|整新|展示|拆封/.test(item.title)
+      /二手|中古|福利|整新|展示|(?<!未)拆封/.test(item.title)
     )
       reason = "商品狀況不同";
     else if (p.condition === "拆封未使用" && !/拆封未使用|全新拆封/.test(item.title))
@@ -47,8 +62,8 @@ export function filterComparables(items: MarketItem[], p: Product) {
       reason = "幣別未確認";
     else if (item.min && item.max && item.min !== item.max)
       reason = "多規格價格範圍";
-    else if (seen.has(item.url)) reason = "重複來源";
-    seen.add(item.url);
+    else if (seen.has(sourceKey(item.url))) reason = "重複來源";
+    seen.add(sourceKey(item.url));
     return { ...item, included: !reason, reason };
   });
 }

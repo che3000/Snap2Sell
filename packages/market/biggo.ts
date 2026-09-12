@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { Product } from "../contracts";
 import { AppError, readLimited } from "../shared/http";
-import { filterComparables, priceSummary } from "./index";
+import { filterComparables, priceSummary, comparisonModel } from "./index";
 const responseSchema = z.object({
   result: z.boolean().optional(),
   list: z.array(
@@ -18,7 +18,7 @@ const responseSchema = z.object({
   ),
 });
 export async function research(p: Product) {
-  const exactModel = p.model.trim();
+  const exactModel = comparisonModel(p);
   const searchModel = exactModel || p.analysis?.model.trim() || "";
   const query = [p.brand || p.analysis?.brand, searchModel || p.name || p.category, p.attributes["容量"]].filter(Boolean).join(" ").trim();
   if (!query) throw new AppError("沒有可搜尋的商品名稱，請先上傳照片或填寫名稱。");
