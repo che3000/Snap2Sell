@@ -31,6 +31,7 @@ export const analysisResultSchema = z.object({
 export const clarifiedResultSchema = analysisResultSchema.extend({condition:z.enum(["", "全新", "二手", "拆封未使用"]),shipping:z.string().max(300),warranty:z.string().max(500),variants:z.string().max(1000)});
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export const marketResearchSchema = z.object({
+  referenceOnly:z.boolean().optional(),
   query: z.string(), at: z.string(), source: z.string(), conditionBasis: z.string(), provisional: z.boolean(),
   items: z.array(z.object({title:z.string(),price:z.number(),url:z.string(),currency:z.string(),min:z.number().nullable(),max:z.number().nullable(),reason:z.string(),included:z.boolean()})).max(50),
   summary: z.object({count:z.number(),low:z.number(),high:z.number(),competitive:z.number(),balanced:z.number(),premium:z.number(),outliers:z.array(z.string())}).nullable(),

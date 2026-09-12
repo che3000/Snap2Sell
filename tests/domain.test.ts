@@ -244,3 +244,9 @@ test("minimal questions only ask condition once; uncertain identity never invent
  assert.equal(p.name,"耳機");assert.equal(p.brand,"");assert.equal(p.model,"");
  assert.equal(previewFromAnalysis(p).title,"耳機");
 });
+test("new condition preserves original photo fields and creates a generic listing without model",()=>{
+ const original={...analysis,model:'',brand:'',name:'',category:'耳機',identityConfidence:'uncertain' as const};
+ const filled=applyAnalysis({...emptyProduct('photo'),condition:'全新'},original);
+ assert.equal(filled.condition,'全新');assert.equal(filled.name,'耳機');assert.equal(filled.attributes.顏色,'黑色');
+ assert.ok(previewFromAnalysis(filled).description?.includes('商品狀況：全新'));assert.equal(filled.model,'');
+});

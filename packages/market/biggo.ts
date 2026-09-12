@@ -18,11 +18,10 @@ const responseSchema = z.object({
   ),
 });
 export async function research(p: Product) {
-  if (!p.model.trim())
-    throw new AppError("請先填寫或辨識商品型號。");
-  const query = [p.brand, p.model, p.attributes["容量"]]
-    .filter(Boolean)
-    .join(" ");
+  const exactModel = p.model.trim();
+  const searchModel = exactModel || p.analysis?.model.trim() || "";
+  const query = [p.brand || p.analysis?.brand, searchModel || p.name || p.category, p.attributes["容量"]].filter(Boolean).join(" ").trim();
+  if (!query) throw new AppError("沒有可搜尋的商品名稱，請先上傳照片或填寫名稱。");
   const response = await fetch(
     `https://api.biggo.com/api/v1/spa/search/${encodeURIComponent(query)}/product`,
     {
@@ -54,15 +53,16 @@ export async function research(p: Product) {
         };
       })
       .filter((x) => x.url),
-    { ...p, condition: p.condition || "全新" },
+    { ...p, model:searchModel, condition: p.condition || "全新" },
   );
   return {
     conditionBasis: p.condition || "全新",
     provisional: !p.condition,
+    referenceOnly: !exactModel,
     query,
     at: new Date().toISOString(),
     items,
-    summary: priceSummary(items),
+    summary: exactModel ? priceSummary(items) : null,
     source: "BigGo product_search API",
   };
 }

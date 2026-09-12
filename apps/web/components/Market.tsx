@@ -12,13 +12,13 @@ export function Market({ s }: { s: Studio }) {
       <div className="actions">
         <button
           className="secondary"
-          disabled={!!s.busy || !s.p.model.trim()}
+          disabled={!!s.busy || !(s.p.model || s.p.name || s.p.category)}
           onClick={s.market}
         >
           {s.busy === "market" ? "正在查詢…" : "查詢市場價格"}
         </button>
       </div>
-      {!s.p.model.trim() && <p className="field-help">上傳照片辨識或填寫型號後，即可自動或手動查價。</p>}
+      {!(s.p.model || s.p.name || s.p.category) && <p className="field-help">上傳照片辨識或填寫型號後，即可自動或手動查價。</p>}
       {result && (
         <div className="market-results">
           <p>
@@ -56,7 +56,7 @@ export function Market({ s }: { s: Studio }) {
             </>
           ) : (
             <div className="notice">
-              可比商品不足 3 筆，不提供推算價格。請查看來源後自行定價。
+              {result.referenceOnly ? "BigGo 已完成搜尋，但精確型號尚未確認，以下僅為參考結果，暫不將其他型號價格當成此商品售價。" : "可比商品不足 3 筆，不提供推算價格。請查看來源後自行定價。"}
             </div>
           )}
           <details>

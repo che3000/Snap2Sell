@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previewFromAnalysis } from "@/packages/listing";
-import { emptyProduct, applyAnalysis } from "@/packages/product";
+import { emptyProduct, applyAnalysis, conditionQuestion } from "@/packages/product";
 import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
 import { analysisResultSchema, clarifiedResultSchema, type AnalysisResult } from "@/packages/contracts";
 import { defaults, type Product, type Preferences } from "@/packages/contracts";
@@ -160,10 +160,6 @@ export function useStudio() {
     const next = applyAnalysis(product, result);
     if (next.priceIsSuggested) { next.price = null; next.priceIsSuggested = false; }
     update({ ...next, pendingQuestions:false, ...previewFromAnalysis(next) });
-    if (!next.model.trim()) {
-      notify("已用通用商品名稱整理已知資訊與文案。精確型號尚未確定，暫不提供型號比價；你仍可繼續編輯與儲存。");
-      return;
-    }
     setBusy("market");
     notify("商品資訊與文案已填入，正在查詢 BigGo 建議售價…");
     try {
@@ -171,7 +167,7 @@ export function useStudio() {
       update({market:result, ...(next.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
       notify(result.summary
         ? `商品資訊、文案及建議售價已整理完成。${result.provisional ? "售價暫以全新品行情參考，確認商品狀況後可重新查價。" : ""}既有售價會保留。`
-        : "商品資訊與文案已填入；BigGo 可比資料不足，暫無可靠建議售價，可在銷售資訊查看來源並重試。");
+        : result.referenceOnly ? "商品狀況、已知資訊與文案已填入；BigGo 已搜尋完成，因型號未確認，先展示參考結果而不自動定價。" : "商品資訊與文案已填入；BigGo 可比資料不足，暫無可靠建議售價，可在銷售資訊查看來源並重試。");
     } catch (error) {
       notify(`商品資訊與文案已保留，比價未完成：${error instanceof Error ? error.message : "請重試"}`, true);
     }
@@ -187,7 +183,9 @@ export function useStudio() {
   const answerQuestions = (answers: {question:string;answer:string}[]) => run("clarify", async () => {
     const product = {...p,answers:[...(p.answers || []),...answers].slice(-40)};
     update({answers:product.answers});
-    const result = clarifiedResultSchema.parse(await api("clarify",{product}));
+    const selected = answers.find(a=>a.question === conditionQuestion)?.answer;
+    if (!product.analysis || !["全新","拆封未使用","二手"].includes(selected || "")) throw new Error("請選擇商品狀況。");
+    const result = clarifiedResultSchema.parse({...product.analysis,questions:[],condition:selected,shipping:product.shipping,warranty:product.warranty,variants:product.variants});
     const next = {...product,condition:result.condition || product.condition,shipping:result.shipping || product.shipping,warranty:result.warranty || product.warranty,variants:result.variants || product.variants};
     const oldPreview = previewFromAnalysis({...p,title:"",description:""});
     if (p.title === oldPreview.title) next.title = "";

@@ -134,6 +134,7 @@ export default function Editor() {
           {s.message}
         </div>
       )}
+      {p.market && <div className="notice">BigGo 已搜尋「{p.market.query}」：{p.market.items.length} 筆結果。<button className="secondary" onClick={()=>setTab("sales")}>查看市場價格與來源</button></div>}
       <div className="workspace">
         <aside className="optimization">
           <div className="panel-title">
