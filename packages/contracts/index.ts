@@ -61,6 +61,7 @@ export const marketResearchSchema = z.object({
         reason: z.string(),
         included: z.boolean(),
         manualExcluded: z.boolean().optional(),
+        manualIncluded: z.boolean().optional(),
       }),
     )
     .max(50),

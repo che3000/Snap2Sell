@@ -343,3 +343,16 @@ test("manual exclusions recalculate all prices and restore without bypassing aut
  assert.equal(toggleMarketExclusion(toggleMarketExclusion(auto,0),0).items[0].included,false);
  assert.equal(toggleMarketExclusion({...market,referenceOnly:true},0).summary,null);
 });
+
+import {setMarketInclusion,marketItemIncluded,marketInputKey} from "../packages/market";
+test("check and cross override strategy, including outliers, and survive storage schema",()=>{
+ const items=[100,200,300,10000].map((price,i)=>({title:'G304',price,url:`https://example.com/${i}`,currency:'TWD',min:null,max:null,reason:i===3?'型號不符':'',included:i!==3}));
+ const market=marketResearchSchema.parse({query:'G304',at:'now',source:'test',conditionBasis:'全新',provisional:false,items,summary:priceSummary(items)});
+ assert.equal(marketItemIncluded(market,items[3]),false);
+ const checked=setMarketInclusion(market,3,true);
+ assert.equal(checked.summary?.count,4);assert.equal(checked.summary?.high,10000);
+ assert.equal(marketResearchSchema.parse(checked).items[3].manualIncluded,true);
+ assert.equal(setMarketInclusion(checked,3,false).summary?.count,3);
+ assert.equal(marketItemIncluded(checked,checked.items[3]),true);
+ assert.notEqual(marketInputKey(emptyProduct('a')),marketInputKey({...emptyProduct('a'),name:'G304'}));
+});

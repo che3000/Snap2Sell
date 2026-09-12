@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { marketInputKey } from "@/packages/market";
 import { previewFromAnalysis } from "@/packages/listing";
 import { emptyProduct, applyAnalysis, correctionQuestion, correctedProduct } from "@/packages/product";
 import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
@@ -100,7 +101,7 @@ export function useStudio() {
   }, [dirty]);
   const update = (patch: Partial<Product>) => {
     setP((old) => {
-      const changed = (["model", "brand", "condition", "attributes"] as const).some(key => key in patch && JSON.stringify(patch[key]) !== JSON.stringify(old[key]));
+      const changed = (["name", "category", "model", "brand", "condition", "attributes"] as const).some(key => key in patch && JSON.stringify(patch[key]) !== JSON.stringify(old[key]));
       return ({
       ...old,
       ...(changed ? {market:undefined, ...(old.priceIsSuggested ? {price:null,priceIsSuggested:false} : {})} : {}),
@@ -156,6 +157,27 @@ export function useStudio() {
     update({market:result, ...(p.price === null && result.summary ? {price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true} : {})});
     notify(result.summary ? "市場行情已更新，空白售價已填入建議價格。" : "搜尋完成，可比資料不足，請查看來源或調整型號後重試。");
   });
+  const latestProduct = useRef(p);
+  latestProduct.current = p;
+  const autoAttempt = useRef("");
+  useEffect(() => {
+    if (!loaded || busy || p.pendingQuestions || p.market || !(p.name.trim() || p.model.trim())) return;
+    const key=marketInputKey(p);
+    if(autoAttempt.current===key) return;
+    const timer=setTimeout(async()=>{
+      autoAttempt.current=key;
+      setBusy("market");
+      try {
+        const result=await fetchMarket(p);
+        if(marketInputKey(latestProduct.current)!==key) return;
+        update({market:result,...(latestProduct.current.price===null && result.summary?{price:result.summary[override.pricing || prefs.pricing],priceIsSuggested:true}:{})});
+        notify(result.summary?'已自動查詢 BigGo，三個建議價格已更新。':'BigGo 已自動搜尋完成，可使用 ✓／✕ 調整採計資料。');
+      } catch(error) {
+        if(marketInputKey(latestProduct.current)===key) notify(`自動查價失敗：${error instanceof Error?error.message:'請稍後重試'}`,true);
+      } finally {setBusy("");}
+    },800);
+    return ()=>clearTimeout(timer);
+  },[loaded,busy,p.id,p.name,p.model,p.brand,p.category,p.condition,p.attributes,p.market,p.pendingQuestions]);
   const finishAnalysis = async (product: Product, result: AnalysisResult) => {
     const next = applyAnalysis(product, result);
     if (next.priceIsSuggested) { next.price = null; next.priceIsSuggested = false; }

@@ -9,6 +9,7 @@ export type MarketItem = {
   reason: string;
   included: boolean;
   manualExcluded?: boolean;
+  manualIncluded?: boolean;
 };
 const compact = (s: string) => s.toLowerCase().replace(/pro\s*[（(]?(\d+)\s*代?[）)]?/g, "pro$1").replace(/[\s\-]/g, "");
 /** Resolve explicit model names, never promote an AI-labelled candidate to confirmed identity. */
@@ -69,14 +70,14 @@ export function filterComparables(items: MarketItem[], p: Product) {
   });
 }
 export function priceSummary(items: MarketItem[]) {
-  let included = items.filter((x) => x.included && !x.manualExcluded);
+  let included = items.filter((x) => (x.manualIncluded ?? (x.included && !x.manualExcluded)) && Number.isFinite(x.price) && x.price > 0 && ["TWD","NTD","NT$"].includes(x.currency));
   if (included.length < 3) return null;
   const sorted = included.map((x) => x.price).sort((a, b) => a - b);
   const q = (f: number) => sorted[Math.floor((sorted.length - 1) * f)];
   const iqr = q(0.75) - q(0.25);
   if (iqr > 0)
     included = included.filter(
-      (x) => x.price >= q(0.25) - 1.5 * iqr && x.price <= q(0.75) + 1.5 * iqr,
+      (x) => x.manualIncluded === true || (x.price >= q(0.25) - 1.5 * iqr && x.price <= q(0.75) + 1.5 * iqr),
     );
   if (included.length < 3) return null;
   const prices = included.map((x) => x.price).sort((a, b) => a - b);
@@ -88,7 +89,7 @@ export function priceSummary(items: MarketItem[]) {
     balanced: prices[Math.floor((prices.length - 1) * 0.5)],
     premium: prices[Math.floor((prices.length - 1) * 0.7)],
     outliers: items
-      .filter((x) => x.included && !x.manualExcluded && !included.includes(x))
+      .filter((x) => (x.manualIncluded ?? (x.included && !x.manualExcluded)) && !included.includes(x))
       .map((x) => x.url),
   };
 }
@@ -98,4 +99,16 @@ export function toggleMarketExclusion(market: MarketResearch, index: number): Ma
  if (!market.items[index]) return market;
  const items=market.items.map((item,i)=>i===index?{...item,manualExcluded:!item.manualExcluded}:item);
  return {...market,items,summary:market.referenceOnly?null:priceSummary(items)};
+}
+
+export function setMarketInclusion(market: MarketResearch, index:number, include:boolean):MarketResearch {
+ const items=market.items.map((item,i)=>i===index?{...item,manualIncluded:include,manualExcluded:!include}:item);
+ const eligible=market.referenceOnly?items.filter(i=>i.manualIncluded===true):items;
+ return {...market,items,summary:priceSummary(eligible)};
+}
+export function marketItemIncluded(market:MarketResearch,item:MarketItem) {
+ return item.manualIncluded ?? (!item.manualExcluded && item.included && !market.summary?.outliers.includes(item.url));
+}
+export function marketInputKey(p:Product) {
+ return JSON.stringify([p.id,p.name,p.brand,p.model,p.category,p.condition,p.attributes]);
 }
