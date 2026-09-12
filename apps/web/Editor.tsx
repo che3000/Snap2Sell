@@ -13,7 +13,6 @@ import {
   CircleHelp,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { samples } from "@/fixtures/products";
 import { missingInformation, emptyProduct } from "@/packages/product";
 import { useStudio } from "./useStudio";
 import { ProductQuestions } from "./components/ProductQuestions";
@@ -112,26 +111,6 @@ export default function Editor() {
           <Plus size={17} />
           新增商品
         </button>
-      </div>
-      <div className="product-switch">
-        {samples.map((sample, i) => (
-          <button
-            key={sample.id}
-            disabled={!!s.busy}
-            className={p.id === sample.id ? "selected" : ""}
-            onClick={() => {
-              s.select(sample);
-              setReview(false);
-            }}
-          >
-            <span className="sample-number">0{i + 1}</span>
-            <span>
-              {sample.name}
-              <small>範例商品 · 規格由你確認</small>
-            </span>
-            <ChevronRight size={16} />
-          </button>
-        ))}
       </div>
       {s.saved.length > 0 && (
         <div className="saved-list">
