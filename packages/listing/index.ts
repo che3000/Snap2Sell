@@ -27,7 +27,7 @@ export function generateListing(p: Product, prefs: Preferences) {
 
 /** Editable photo-derived preview, never a confirmed or publishable listing. */
 export function previewFromAnalysis(p: Product) {
-  if (p.analysis?.identityConfidence !== "high_confidence" || !p.analysis.identityEvidence.trim() || !p.name.trim()) return {};
+  if (!p.analysis?.identityEvidence.trim() || !p.name.trim()) return {};
   const title = p.name.startsWith(p.brand) ? p.name : `${p.brand} ${p.name}`.trim();
   return {title:p.title || title, description:p.description || [p.name, ...factualLines(p)].join("\n")};
 }

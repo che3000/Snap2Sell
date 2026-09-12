@@ -213,7 +213,7 @@ test("photo preview fills title and description without confirming or overwritin
  const p=applyAnalysis(emptyProduct('photo'),analysis), draft=previewFromAnalysis(p);
  assert.ok(draft.title?.includes('G304'));assert.ok(draft.description?.includes('黑色'));assert.ok(!draft.description?.includes('保固'));assert.equal(p.confirmed,false);
  assert.equal(previewFromAnalysis({...p,title:'custom'}).title,'custom');
- assert.deepEqual(previewFromAnalysis({...p,analysis:{...analysis,identityConfidence:'uncertain'}}),{});
+ assert.deepEqual(previewFromAnalysis({...p,name:"",analysis:{...analysis,identityConfidence:'uncertain'}}),{});
 });
 
 test("unconfirmed products can compare new reference prices without claiming condition",()=>{
@@ -234,4 +234,13 @@ test("clarification keeps answers and pending questions in saved product contrac
  const result=clarifiedResultSchema.parse({...analysis,questions:[],condition:'二手',shipping:'',warranty:'',variants:''});
  const filled=applyAnalysis({...p,condition:result.condition},result);
  assert.equal(filled.condition,'二手');assert.equal(filled.warranty,'');assert.equal(filled.confirmed,false);
+});
+
+import {minimalQuestions,conditionQuestion} from "../packages/product";
+test("minimal questions only ask condition once; uncertain identity never invents brand",()=>{
+ assert.deepEqual(minimalQuestions(emptyProduct("x")),[conditionQuestion]);
+ assert.deepEqual(minimalQuestions({...emptyProduct("x"),condition:"全新"}),[]);
+ const p=applyAnalysis(emptyProduct("x"),{...analysis,identityConfidence:"probable",name:"Possible specific model",category:"耳機"});
+ assert.equal(p.name,"耳機");assert.equal(p.brand,"");assert.equal(p.model,"");
+ assert.equal(previewFromAnalysis(p).title,"耳機");
 });

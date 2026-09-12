@@ -1,9 +1,7 @@
 "use client";
-import {useState} from "react";
 import {Dialog,DialogContent,DialogTitle,DialogDescription,DialogHeader} from "@/components/ui/dialog";
+import {conditionQuestion} from "@/packages/product";
 import type {Studio} from "../useStudio";
 export function ProductQuestions({s}:{s:Studio}) {
- const questions=s.p.analysis?.questions || [];
- const [answers,setAnswers]=useState<Record<string,string>>({});
- return <Dialog open={s.questionsOpen && !!s.p.pendingQuestions} onOpenChange={open=>{if(!s.busy)s.setQuestionsOpen(open)}}><DialogContent style={{maxHeight:"85vh",overflowY:"auto"}} showCloseButton={!s.busy}><DialogHeader><DialogTitle>補充商品資訊</DialogTitle><DialogDescription>回答以下問題後，AI 會整理商品欄位、文案與建議售價。不確定的內容可以回答「不知道」。</DialogDescription></DialogHeader><form onSubmit={e=>{e.preventDefault();void s.answerQuestions(questions.map(question=>({question,answer:(answers[question] || '').trim()})))}}>{questions.map((question,i)=><label key={question}>{i+1}. {question}<textarea rows={3} maxLength={1000} required disabled={!!s.busy} value={answers[question] || ''} onChange={e=>setAnswers({...answers,[question]:e.target.value})} placeholder="例如：二手，使用半年，功能正常，外殼有小刮痕"/></label>)}{s.error&&<p role="alert">{s.message}</p>}<div className="actions"><button className="primary" disabled={!!s.busy || questions.some(q=>!answers[q]?.trim())}>{s.busy?'正在整理回答…':'送出回答並自動填入'}</button><button type="button" className="secondary" disabled={!!s.busy} onClick={()=>s.setQuestionsOpen(false)}>稍後回答</button></div></form></DialogContent></Dialog>;
+ return <Dialog open={s.questionsOpen && !!s.p.pendingQuestions} onOpenChange={open=>{if(!s.busy)s.setQuestionsOpen(open)}}><DialogContent showCloseButton={!s.busy}><DialogHeader><DialogTitle>只需確認商品狀況</DialogTitle><DialogDescription>這件商品是新的嗎？選擇後會自動整理資訊，不需要回答品牌、電池容量或續航。</DialogDescription></DialogHeader><div className="actions">{["全新","拆封未使用","二手"].map(answer=><button key={answer} className="primary" disabled={!!s.busy} onClick={()=>s.answerQuestions([{question:conditionQuestion,answer}])}>{answer}</button>)}</div>{s.busy&&<p role="status">正在整理商品資訊…</p>}{s.error&&<p role="alert">{s.message}</p>}<p className="field-help">無法確認的規格會留空；二手商品的瑕疵可稍後補充。</p><button className="secondary" disabled={!!s.busy} onClick={()=>s.setQuestionsOpen(false)}>稍後選擇</button></DialogContent></Dialog>;
 }

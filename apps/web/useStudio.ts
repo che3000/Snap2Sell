@@ -161,7 +161,7 @@ export function useStudio() {
     if (next.priceIsSuggested) { next.price = null; next.priceIsSuggested = false; }
     update({ ...next, pendingQuestions:false, ...previewFromAnalysis(next) });
     if (!next.model.trim()) {
-      notify("無法確定型號，請補拍型號標籤或填入型號後查價。其餘已辨識內容已保留。");
+      notify("已用通用商品名稱整理已知資訊與文案。精確型號尚未確定，暫不提供型號比價；你仍可繼續編輯與儲存。");
       return;
     }
     setBusy("market");
