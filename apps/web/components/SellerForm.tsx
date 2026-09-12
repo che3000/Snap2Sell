@@ -17,7 +17,7 @@ import { CategoryPicker } from "./CategoryPicker";
 import { AttributeSelect } from "./AttributeSelect";
 import { SuggestionCards } from "./SuggestionCards";
 import { attributeChoices, attributeKeys } from "@/packages/product/attributes";
-import { listingOptions } from "@/packages/listing/options";
+import { listingOptions, nameSuggestionBase } from "@/packages/listing/options";
 import { priceForLegacyPreference } from "@/packages/market";
 import type { Studio } from "../useStudio";
 import type { SellerFields } from "@/packages/contracts";
@@ -53,10 +53,11 @@ export function SellerForm({ s }: { s: Studio }) {
     s.update({ seller: { ...fields, ...patch } });
   const attrs = attributeKeys(p);
   const [proposalBase, setProposalBase] = useState(p.name);
-  const proposals = listingOptions({...p,name:proposalBase || p.name});
+  const nextProposalBase = nameSuggestionBase(p, proposalBase);
+  const proposals = listingOptions({...p,name:nextProposalBase});
   useEffect(() => {
-    if (!proposals.names.some(o=>o.text===p.name)) setProposalBase(p.name);
-  }, [p.name]);
+    setProposalBase(nextProposalBase);
+  }, [nextProposalBase]);
   const media = (
     file: File | undefined,
     kind: "marketingImage" | "video" | "descriptionImages",

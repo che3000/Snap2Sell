@@ -1,4 +1,9 @@
 import type { Product } from "../contracts";
+/** Keep the source name when applying a suggestion; adopt newly entered or recognized names. */
+export function nameSuggestionBase(p: Product, previous: string) {
+ if (!previous.trim()) return p.name;
+ return listingOptions({...p,name:previous}).names.some(o=>o.text===p.name) ? previous : p.name;
+}
 export function listingOptions(p: Product) {
  if(!p.name.trim()) return {names:[],descriptions:[]};
  const base=p.name.trim();

@@ -444,3 +444,20 @@ test('web backup accepts only cited explicit TWD amounts, not invented URLs or r
  assert.equal(citedPriceRows([{...row,price:699,price_text:'NT$699–899'}],[row.url]).length,0);
  assert.equal(citedPriceRows([{...row,currency:'USD'}],[row.url]).length,0);
 });
+
+import {nameSuggestionBase} from '../packages/listing/options';
+test('name suggestions stay stable from an empty upload through repeated selections',()=>{
+ let p={...emptyProduct('name-options'),condition:'全新',attributes:{容量:'256GB',顏色:'白色'}};
+ let base=nameSuggestionBase(p,'');
+ p={...p,name:'Apple iPhone 17'};
+ base=nameSuggestionBase(p,base);
+ const expected=listingOptions({...p,name:base}).names;
+ assert.equal(new Set(expected.map(o=>o.text)).size,3);
+ for(const choice of [...expected,...expected].reverse()) {
+  p={...p,name:choice.text,title:choice.text};
+  base=nameSuggestionBase(p,base);
+  assert.deepEqual(listingOptions({...p,name:base}).names,expected);
+ }
+ p={...p,name:'賣家修正的 iPhone 17'};
+ assert.equal(nameSuggestionBase(p,base),p.name);
+});
