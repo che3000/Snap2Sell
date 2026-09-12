@@ -11,7 +11,7 @@ export function ProcessingOverlay({active,stage}:{active:boolean;stage:string}) 
   return ()=>{dialog.close();document.body.style.overflow=overflow;};
  },[active]);
  const step=stage==='upload'?0:stage==='market'?2:1;
- const labels=['上傳商品圖片',stage==='clarify'?'整理你的回答與修正':'AI 辨識商品資訊','查詢 BigGo 並計算建議售價'];
+ const labels=['上傳商品圖片',stage==='clarify'?'整理你的回答與修正':'AI 辨識商品資訊','查詢行情與必要的網頁備援'];
  return <dialog ref={ref} className="processing-screen" aria-labelledby="processing-title" aria-describedby="processing-description" onCancel={e=>e.preventDefault()}>
   <div className="processing-panel" aria-busy="true">
    <div className="processing-spinner" aria-hidden="true" />

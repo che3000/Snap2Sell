@@ -66,6 +66,14 @@ flowchart LR
 
 價格是來源標示的行情，不代表成交價、銷售速度或獲利。使用者手動採計會改變篩選結果，需要自行核對商品是否可比。
 
+### OpenAI 網頁查價備援
+
+當 BigGo 查詢失敗，或結果無法產生建議售價時，`/api/market` 自動呼叫 OpenAI Responses 的 `web_search`，使用既有 `OPENAI_API_KEY` 與 `OPENAI_MODEL`（模型需支援網頁搜尋）。BigGo 有足夠資料時不呼叫備援。備援會增加搜尋時間與 OpenAI 用量。
+
+`apps/api/market-fallback.ts` 將已填商品資訊及第一張屬於當前使用者的圖片交給搜尋工具，要求回傳商品頁標題、網址、台幣價格與價格原文。`packages/market/fallback.ts` 僅接受出現在本次工具來源清單的網址，且價格原文須含對應數字與台幣標示；這是來源一致性檢查，不是另外抓取網頁全文驗證。無價格、範圍價、非台幣或無來源的資料不採用。
+
+備援結果沿用型號、容量、狀況及 global policy 篩選，與 BigGo 結果依商品目的網址去重合併，至少三筆可比資料才計算三種建議，並沿用原有自動填價流程。型號未確認時仍只提供參考。前端顯示備援狀態、各筆來源與價格原文，仍可用 ✓／✕ 重算；備援失敗保留 BigGo 結果，不憑空估價。狀態與來源一併保存於草稿與市場快照。
+
 ## 本機開發
 
 需要 Node.js **22.13.0 以上**。技術組合為 React、Next.js App Router 結構、vinext / Vite、Cloudflare Workers、D1、R2、Zod 與 Drizzle。

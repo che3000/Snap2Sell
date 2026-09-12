@@ -27,6 +27,8 @@ export function Market({ s }: { s: Studio }) {
       {!(s.p.model || s.p.name || s.p.category) && <p className="field-help">上傳照片辨識或填寫型號後，即可自動或手動查價。</p>}
       {result && (
         <div className="market-results">
+          <p>價格來源：{result.source}</p>
+          {result.fallback && <p className="notice">{result.fallback.reason}，已啟用 OpenAI 網頁備援搜尋。{result.fallback.status==='failed'?'備援搜尋未成功，已保留 BigGo 結果，請稍後重試。':result.referenceOnly?'已取得的價格僅供參考，請先確認商品型號。':result.summary?'已合併有來源的價格資料。':'尚未找到足夠可比價格，未產生估價。'}</p>}
           <p>
             搜尋：{result.query} · {new Date(result.at).toLocaleString("zh-TW")}
           </p>
@@ -65,7 +67,7 @@ export function Market({ s }: { s: Studio }) {
             </>
           ) : (
             <div className="notice">
-              {result.referenceOnly ? "BigGo 已完成搜尋，但精確型號尚未確認，以下僅為參考結果，暫不將其他型號價格當成此商品售價。" : "可比商品不足 3 筆，不提供推算價格。請查看來源後自行定價。"}
+              {result.referenceOnly ? "精確型號尚未確認，以下僅為參考結果，暫不將其他型號價格當成此商品售價。" : "可比商品不足 3 筆，不提供推算價格。請查看來源後自行定價。"}
             </div>
           )}
           <details>
@@ -79,6 +81,7 @@ export function Market({ s }: { s: Studio }) {
                   {i.title}
                 </a>
                 <br />
+                {i.priceSource && <><small>{i.priceSource} · 來源價格：{i.priceEvidence}</small><br /></>}
                 NT${i.price}　
                 {[true,false].map(include=><button type="button" key={String(include)} className={marketItemIncluded(result,i)===include?'primary':'secondary'} style={{marginRight:6}} disabled={!!s.busy || (include && (!Number.isFinite(i.price) || i.price<=0 || !['TWD','NTD','NT$'].includes(i.currency)))} aria-label={`${include?'採計':'排除'}：${i.title}`} aria-pressed={marketItemIncluded(result,i)===include} onClick={()=>{
                   const market=setMarketInclusion(result,n,include);

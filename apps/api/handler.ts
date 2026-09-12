@@ -15,6 +15,8 @@ import {
 } from "../../packages/preferences";
 import { generateListing } from "../../packages/listing";
 import { missingInformation } from "../../packages/product";
+import { webPriceResearch } from "./market-fallback";
+import { researchWithFallback } from "../../packages/market/fallback";
 import { research } from "../../packages/market/biggo";
 import { ai } from "./openai";
 import {
@@ -475,9 +477,10 @@ export async function handle(request: Request, action: string) {
     }
     if (action === "market") {
       const policy = await activeGlobalPolicy();
-      const result = await research(p, {
-        marketPolicy: { ...policy.marketFilter, version: policy.version },
-      });
+      const marketPolicy={...policy.marketFilter,version:policy.version};
+      const result = await researchWithFallback(p,
+        ()=>research(p,{marketPolicy}),
+        ()=>webPriceResearch(user,p,marketPolicy),marketPolicy);
       const current = preferenceSchema.partial().parse(data.preferences || {});
       const prefs = (await profile(user, p.store, p.category, current)).profile;
       const savedMarket = await saveMarketSnapshot(user, p, result, policy, prefs);

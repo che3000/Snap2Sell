@@ -82,6 +82,7 @@ export const marketResearchSchema = z.object({
   globalPolicyVersion: z.string().nullable().optional(),
   retrievalPlan: z.unknown().optional(),
   appliedCapabilities: z.array(z.string()).optional(),
+  fallback: z.object({status:z.enum(["completed","failed"]),reason:z.string(),source:z.string(),at:z.string()}).optional(),
   referenceOnly: z.boolean().optional(),
   query: z.string(),
   at: z.string(),
@@ -102,6 +103,8 @@ export const marketResearchSchema = z.object({
         manualExcluded: z.boolean().optional(),
         manualIncluded: z.boolean().optional(),
         sourceKey: z.string().optional(),
+        priceSource: z.string().optional(),
+        priceEvidence: z.string().optional(),
       }),
     )
     .max(50),

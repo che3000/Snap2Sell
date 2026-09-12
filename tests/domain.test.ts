@@ -419,3 +419,28 @@ test("description versions differ in structure and retain disclosed defects",()=
  for(const o of options) assert.match(o.text,/背面有刮痕/);
  assert.doesNotMatch(options[2].text,/【詳細規格】|•/);
 });
+
+import {researchWithFallback,citedPriceRows} from '../packages/market/fallback';
+test('fallback activates only without a BigGo summary and preserves results on failure',async()=>{
+ const p={...emptyProduct('fallback'),model:'G304'};
+ const items=[700,800,900].map((price,i)=>({title:'G304',price,url:`https://shop${i}.example/item`,currency:'TWD',min:null,max:null,reason:'',included:true}));
+ const market=marketResearchSchema.parse({query:'G304',at:'now',source:'BigGo',conditionBasis:'全新',provisional:false,items,summary:priceSummary(items)});
+ let calls=0;
+ const good=await researchWithFallback(p,async()=>market,async()=>{calls++;return market;});assert.equal(calls,0);assert.equal(good,market);
+ const recovered=await researchWithFallback(p,async()=>{throw Error('offline');},async()=>market);
+ assert.equal(recovered.summary?.count,3);assert.equal(recovered.fallback?.status,'completed');
+ const original={...market,summary:null};
+ const failed=await researchWithFallback(p,async()=>original,async()=>{throw Error('no key');});assert.equal(failed.fallback?.status,'failed');assert.deepEqual(failed.items,items);
+ const sparse=await researchWithFallback(p,async()=>({...market,items:[],summary:null}),async()=>({...market,items:items.slice(0,1),summary:null}));assert.equal(sparse.summary,null);
+ const duplicate=await researchWithFallback(p,async()=>({...market,items:[{...items[0],url:'https://biggo.com.tw/r/?purl='+encodeURIComponent(items[0].url)}],summary:null}),async()=>({...market,items:items.slice(0,2),summary:null}));
+ assert.equal(duplicate.items.length,2);assert.equal(duplicate.summary,null);
+ const uncertain=await researchWithFallback({...p,model:''},async()=>({...market,referenceOnly:true,summary:null}),async()=>market);assert.equal(uncertain.summary,null);
+});
+test('web backup accepts only cited explicit TWD amounts, not invented URLs or ranges',()=>{
+ const row={title:'G304',url:'https://shop.example/item',price:799,currency:'TWD',price_text:'NT$799'};
+ assert.equal(citedPriceRows([row],[row.url]).length,1);
+ assert.equal(citedPriceRows([row],[]).length,0);
+ assert.equal(citedPriceRows([{...row,price:null}],[row.url]).length,0);
+ assert.equal(citedPriceRows([{...row,price:699,price_text:'NT$699–899'}],[row.url]).length,0);
+ assert.equal(citedPriceRows([{...row,currency:'USD'}],[row.url]).length,0);
+});
