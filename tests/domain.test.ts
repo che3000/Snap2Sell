@@ -530,3 +530,17 @@ test('Shopee Console export is standalone, treats listing text as data and handl
  await runInNewContext(script,{...context,location:{hostname:'example.com',pathname:'/portal/product/new'},document:{querySelectorAll:()=>{queried=true;return [];}}});
  assert.equal(queried,false);
 });
+
+import {categoryRecords,categoryIdForPath} from '../packages/product/categories';
+test('imported category paths retain IDs and existing branches',()=>{
+ assert.equal(categoryRecords.length,30);
+ assert.equal(new Set(categoryRecords.map(r=>r.id)).size,30);
+ for(const record of categoryRecords){
+  let tree=categories;
+  for(const segment of record.path){assert.ok(tree[segment]);tree=tree[segment];}
+  assert.equal(categoryIdForPath(record.path.join(' > ')),record.id);
+ }
+ assert.equal(categoryIdForPath('女生衣著 > 上衣 > T恤'),'100352');
+ assert.equal(categoryIdForPath('女生衣著 > 上衣'),undefined);
+ assert.ok(categories['電腦與周邊配件']['列印機/掃描機']['3D列印機']);
+});

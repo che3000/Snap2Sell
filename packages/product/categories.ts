@@ -49,3 +49,15 @@ export const categories: CategoryTree = {
   },
   "汽機車百貨／交通用品": {}
 };
+
+// Partial category lookup rows supplied by the seller; not a complete Shopee taxonomy.
+// Category IDs and attribute IDs are separate namespaces.
+import records from './category-records.json';
+export const categoryRecords = records;
+for (const record of categoryRecords) {
+  let branch = categories;
+  for (const label of record.path) branch = branch[label] ||= {};
+}
+export function categoryIdForPath(path:string) {
+  return categoryRecords.find(record=>record.path.join(' > ')===path)?.id;
+}
