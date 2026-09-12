@@ -67,3 +67,20 @@ export function normalizeAnalysis(a: AnalysisResult): AnalysisResult {
   }
   return a;
 }
+
+/** Keep the seller follow-up short, preserving the AI's product-specific questions. */
+export function followUpQuestions(p: Product, analysis: AnalysisResult) {
+  const answered = new Set((p.answers || []).map(a=>a.question.trim()));
+  const conditionMissing = !p.condition.trim() && !answered.has(conditionQuestion);
+  const isCondition = (q:string)=>/新舊|全新|二手|拆封|商品狀況/.test(q) && !/瑕疵|刮|缺|功能|損|故障/.test(q);
+  const questions = analysis.questions.map(q=>q.trim()).filter(q=>q && !answered.has(q) && !isCondition(q));
+  const alreadyDiscussed = (pattern:RegExp) => [...questions,...answered].some(q=>pattern.test(q));
+  if (!p.model.trim() && (!analysis.model.trim() || analysis.identityConfidence !== "high_confidence") && !alreadyDiscussed(/型號|哪一代|第幾代/)) {
+    questions.push("請確認商品的完整品牌與型號；不確定可略過。");
+  }
+  const capacityKnown = p.attributes["容量"]?.trim() || analysis.observations.some(o=>/容量/.test(o.label) && /GB|TB/i.test(o.value) && o.confidence === "high_confidence");
+  if (/iphone|智慧型手機/i.test([p.name,analysis.name,analysis.category].join(" ")) && !capacityKnown && !alreadyDiscussed(/容量|GB|TB/i)) {
+    questions.push("這件手機的儲存容量是多少？");
+  }
+  return [...(conditionMissing?[conditionQuestion]:[]),...new Set(questions)].slice(0,3);
+}

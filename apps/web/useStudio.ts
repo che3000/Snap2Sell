@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previewFromAnalysis } from "@/packages/listing";
-import { emptyProduct, applyAnalysis, conditionQuestion } from "@/packages/product";
+import { emptyProduct, applyAnalysis } from "@/packages/product";
 import { marketResearchSchema, type MarketResearch } from "@/packages/contracts";
 import { analysisResultSchema, clarifiedResultSchema, type AnalysisResult } from "@/packages/contracts";
 import { defaults, type Product, type Preferences } from "@/packages/contracts";
@@ -183,9 +183,8 @@ export function useStudio() {
   const answerQuestions = (answers: {question:string;answer:string}[]) => run("clarify", async () => {
     const product = {...p,answers:[...(p.answers || []),...answers].slice(-40)};
     update({answers:product.answers});
-    const selected = answers.find(a=>a.question === conditionQuestion)?.answer;
-    if (!product.analysis || !["全新","拆封未使用","二手"].includes(selected || "")) throw new Error("請選擇商品狀況。");
-    const result = clarifiedResultSchema.parse({...product.analysis,questions:[],condition:selected,shipping:product.shipping,warranty:product.warranty,variants:product.variants});
+    if (!product.analysis || !answers.length) throw new Error("請先回答或選擇不確定。");
+    const result = clarifiedResultSchema.parse(await api("clarify", {product}));
     const next = {...product,condition:result.condition || product.condition,shipping:result.shipping || product.shipping,warranty:result.warranty || product.warranty,variants:result.variants || product.variants};
     const oldPreview = previewFromAnalysis({...p,title:"",description:""});
     if (p.title === oldPreview.title) next.title = "";

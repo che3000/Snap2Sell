@@ -297,3 +297,19 @@ test("three listing alternatives preserve facts and omit unsupported promises",(
  assert.ok(options.names.every(o=>o.text.length<=60));
  assert.deepEqual(listingOptions(emptyProduct('empty')),{names:[],descriptions:[]});
 });
+
+import {followUpQuestions} from "../packages/product";
+test("AI followups retain product-specific gaps, cap three, and do not repeat condition",()=>{
+ const a={...analysis,questions:['是全新還是二手？','請提供型號','請提供容量','是否有缺件','請提供型號']};
+ assert.deepEqual(followUpQuestions(emptyProduct('questions'),a),[conditionQuestion,'請提供型號','請提供容量']);
+ assert.deepEqual(followUpQuestions({...emptyProduct('questions'),condition:'全新',answers:[{question:'請提供型號',answer:'不確定'}]},a),['請提供容量','是否有缺件']);
+ assert.deepEqual(followUpQuestions({...emptyProduct('complete'),condition:'全新'},{...a,questions:[]}),[]);
+ assert.ok(followUpQuestions(emptyProduct('used'),{...a,questions:['二手商品有哪些瑕疵？']}).includes('二手商品有哪些瑕疵？'));
+});
+
+test("missing phone identity and storage become followups even when AI omits questions",()=>{
+ const phone={...analysis,name:'Apple iPhone',model:'',identityConfidence:'probable' as const,questions:[],observations:[]};
+ const questions=followUpQuestions(emptyProduct('phone'),phone);
+ assert.equal(questions.length,3);assert.match(questions[1],/型號/);assert.match(questions[2],/容量/);
+ assert.deepEqual(followUpQuestions({...emptyProduct('phone'),answers:questions.map(question=>({question,answer:'不確定'}))},phone),[]);
+});
