@@ -327,3 +327,19 @@ test("seller phone storage is separated from model into attributes",()=>{
  const fixed=normalizeSellerDetails({...analysis,name:'iPhone 17 256GB',model:'iPhone 17 256GB',category:'手機',observations:[] as typeof analysis.observations});
  assert.equal(fixed.model,'iPhone 17');assert.equal(fixed.observations[0].value,'256GB');
 });
+
+import {toggleMarketExclusion} from "../packages/market";
+import {marketResearchSchema} from "../packages/contracts";
+test("manual exclusions recalculate all prices and restore without bypassing auto filters",()=>{
+ const items=[100,200,300,400,500].map((price,i)=>({title:'G304',price,url:`https://example.com/${i}`,currency:'TWD',min:null,max:null,reason:'',included:true}));
+ const market=marketResearchSchema.parse({query:'G304',at:'now',source:'test',conditionBasis:'全新',provisional:false,items,summary:priceSummary(items)});
+ const excluded=toggleMarketExclusion(market,0);
+ assert.deepEqual([excluded.summary?.competitive,excluded.summary?.balanced,excluded.summary?.premium],[200,300,400]);
+ assert.equal(excluded.summary?.count,4);
+ assert.equal(marketResearchSchema.parse(excluded).items[0].manualExcluded,true);
+ assert.deepEqual(toggleMarketExclusion(excluded,0).summary,market.summary);
+ const small=toggleMarketExclusion(toggleMarketExclusion(excluded,1),2);assert.equal(small.summary,null);
+ const auto={...market,items:market.items.map((x,i)=>i===0?{...x,included:false,reason:'配件或零件'}:x)};
+ assert.equal(toggleMarketExclusion(toggleMarketExclusion(auto,0),0).items[0].included,false);
+ assert.equal(toggleMarketExclusion({...market,referenceOnly:true},0).summary,null);
+});

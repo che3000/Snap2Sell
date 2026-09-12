@@ -1,4 +1,4 @@
-import type { Product } from "../contracts";
+import type { Product, MarketResearch } from "../contracts";
 export type MarketItem = {
   title: string;
   price: number;
@@ -8,6 +8,7 @@ export type MarketItem = {
   max: number | null;
   reason: string;
   included: boolean;
+  manualExcluded?: boolean;
 };
 const compact = (s: string) => s.toLowerCase().replace(/pro\s*[（(]?(\d+)\s*代?[）)]?/g, "pro$1").replace(/[\s\-]/g, "");
 /** Resolve explicit model names, never promote an AI-labelled candidate to confirmed identity. */
@@ -68,7 +69,7 @@ export function filterComparables(items: MarketItem[], p: Product) {
   });
 }
 export function priceSummary(items: MarketItem[]) {
-  let included = items.filter((x) => x.included);
+  let included = items.filter((x) => x.included && !x.manualExcluded);
   if (included.length < 3) return null;
   const sorted = included.map((x) => x.price).sort((a, b) => a - b);
   const q = (f: number) => sorted[Math.floor((sorted.length - 1) * f)];
@@ -87,7 +88,14 @@ export function priceSummary(items: MarketItem[]) {
     balanced: prices[Math.floor((prices.length - 1) * 0.5)],
     premium: prices[Math.floor((prices.length - 1) * 0.7)],
     outliers: items
-      .filter((x) => x.included && !included.includes(x))
+      .filter((x) => x.included && !x.manualExcluded && !included.includes(x))
       .map((x) => x.url),
   };
+}
+
+/** Manual exclusions supplement automatic filters; restoring never bypasses those filters. */
+export function toggleMarketExclusion(market: MarketResearch, index: number): MarketResearch {
+ if (!market.items[index]) return market;
+ const items=market.items.map((item,i)=>i===index?{...item,manualExcluded:!item.manualExcluded}:item);
+ return {...market,items,summary:market.referenceOnly?null:priceSummary(items)};
 }
